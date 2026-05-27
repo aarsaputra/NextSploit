@@ -1,76 +1,107 @@
-# 🚀 NextSploit v2.0 — Next.js Security Auditing Framework
+# 🔍 NextSploit: Next.js CVE-2025-29927 & Multi-CVE Security Auditing Framework ⚠️
 
-NextSploit adalah framework otomatisasi *Penetration Testing* (uji penetrasi) modular yang dirancang secara khusus untuk memindai, mendeteksi, dan menganalisis kerentanan pada aplikasi web berbasis **Next.js**. 
+**NextSploit** adalah framework otomatisasi *penetration testing* (uji penetrasi) modular dengan akurasi tinggi yang dirancang secara khusus untuk memindai, mendeteksi, dan menganalisis kerentanan kritis pada aplikasi web berbasis **Next.js**.
 
-Framework ini membantu *Security Engineer* untuk menguji ketahanan aplikasi dan membantu *Software Developer* untuk mengidentifikasi serta memperbaiki celah keamanan sebelum naik ke lingkungan produksi.
-
----
-
-## 🎯 Daftar Isi
-1. [Prasyarat & Instalasi](#-prasyarat--instalasi)
-2. [Fitur Utama v2.0](#-fitur-utama-v20)
-3. [Parameter CLI Lengkap](#%EF%B8%8F-parameter-cli-lengkap)
-4. [Arsitektur Proyek & Alur Kerja](#-arsitektur-proyek--alur-kerja)
-5. [Panduan Integrasi & Pengembangan Modul Baru (Untuk Programmer)](#-panduan-integrasi--pengembangan-modul-baru-untuk-programmer)
-6. [Panduan Remediasi & Mitigasi Celah (Untuk User/Developer)](#-panduan-remediasi--mitigasi-celah-untuk-userdeveloper)
-7. [Penyelesaian Masalah (Troubleshooting)](#-penyelesaian-masalah-troubleshooting)
-8. [Disclaimer](#%EF%B8%8F-disclaimer)
+Framework ini dibangun berdasarkan konsep asli dari **[AnonKryptiQuz/NextSploit](https://github.com/AnonKryptiQuz/NextSploit)**. Jika versi aslinya berfokus khusus pada CVE-2025-29927, **NextSploit v2.1** memperluas kapabilitasnya menjadi mesin audit Next.js yang komprehensif dengan kemampuan deteksi multi-kerentanan (RCE, SSRF, Cache Poisoning, dan Source Exposure), validasi baseline untuk mengeliminasi false positive, serta mesin perhitungan skor confidence yang diadaptasi dari filter false positive standar.
 
 ---
 
-## 📋 Prasyarat & Instalasi
+## 🚀 **Fitur**
 
-### Prasyarat Sistem
-*   **Python**: Versi `3.8` atau yang lebih baru.
-*   **Koneksi Jaringan**: Diperlukan untuk pemindaian aktif (kecuali mode analisis offline).
+- **🔍 Deteksi Otomatis Versi Next.js & Build ID**: Pemindai aktif dan pasif merayapi aset Next.js untuk mendapatkan Build ID asli dan Server Action ID yang aktif.
+- **🛡️ Penilaian Multi-Kerentanan**:
+  - **CVE-2025-29927 (Middleware Auth Bypass)**: Mendeteksi dan memvisualisasikan bypass autentikasi middleware.
+  - **CVE-2025-66478 (React2Shell RCE)**: Menguji bug deserialisasi RSC Flight Protocol pada sisi server (CVSS 10.0).
+  - **CVE-2024-34351 (Server Action SSRF)**: Memvalidasi vektor pengalihan outbound melalui manipulasi Host Header.
+  - **CVE-2024-46982 (Cache Poisoning / Stored XSS)**: Menguji injeksi cache pada fallback Route Matches.
+  - **CVE-2024-56332 (Pathname Middleware Bypass)**: Mengevaluasi kontrol otorisasi terhadap varian traversal dan URL-encoding.
+  - **CVE-2025-48068 (Dev Server Source Exposure)**: Mengidentifikasi paparan bundel kode sumber di server pengembangan menggunakan spoofing origin.
+- **⚖️ Pengurangan FP & Skor Confidence**: Memperkenalkan perbandingan baseline respons awal untuk menyaring perbedaan dinamis pada script analitik, serta menilai temuan dalam skala `0.0` - `1.0`.
+- **🌐 Otomasi Chaining Browser**: Mengintegrasikan Browser Exploit Engine milik AnonKryptiQuz untuk meluncurkan jendela Chrome yang dikendalikan oleh Selenium dengan header bypass yang telah dikonfigurasi melalui CDP.
+- **📡 Laporan Multiformat**: Menampilkan temuan secara instan pada CLI Rich yang bersih dan mengekspor laporan lengkap ke format JSON, HTML, atau TXT.
 
-### Instalasi Dependensi
-NextSploit menggunakan pustaka pihak ketiga seperti `requests` untuk penanganan HTTP dan `rich` untuk antarmuka CLI yang menawan. Pasang dependensi menggunakan perintah berikut:
+---
+
+## **Prasyarat** 🛠️
+
+Untuk menjalankan NextSploit dan menggunakan fitur visual chaining peramban, Anda membutuhkan:
+- **🐍 Python 3.8+**
+- **🧪 Selenium** (Paket Python)
+- **🚗 ChromeDriver** & **🦊 GeckoDriver** (dapat diakses pada path sistem)
+- **🌐 Google Chrome** (untuk validasi visual berbasis peramban)
+- **rich** & **requests** (untuk penataan CLI dan HTTP parsing)
+
+---
+
+## **Instalasi** 📥
+
+1. **Klon repositori:**
+   ```bash
+   git clone git@github.com:aarsaputra/NextSploit.git
+   cd NextSploit
+   ```
+
+2. **Pasang paket Python yang dibutuhkan:**
+   NextSploit mendukung eksekusi di virtual environment. Pasang dependensi menggunakan pip:
+   ```bash
+   pip install -r requirements.txt
+   ```
+   *Jika file `requirements.txt` belum ada, pasang library secara manual:*
+   ```bash
+   pip install requests rich urllib3 selenium prompt_toolkit colorama
+   ```
+
+3. **Konfigurasi Driver:**
+   Pastikan `chromedriver` telah terpasang di sistem Kali Linux atau Debian Anda:
+   ```bash
+   sudo apt update
+   sudo apt install chromium-driver -y
+   ```
+
+---
+
+## **Penggunaan** 💻
+
+NextSploit menyediakan antarmuka Command-Line (CLI) yang sangat fleksibel:
 
 ```bash
-pip3 install -r requirements.txt
+python nextsploit.py -t <TARGET_URL> [opsi]
 ```
 
-*Jika file `requirements.txt` belum ada, pasang library secara manual:*
-```bash
-pip3 install requests rich urllib3
-```
-
----
-
-## ✨ Fitur Utama v2.0
-
-NextSploit v2.0 membawa pembaruan besar yang berfokus pada **Akurasi Tinggi** dan **Kemudahan Pengembangan**:
-
-1.  **Baseline-Driven Scanning**: Menghilangkan *false positive* dengan membandingkan tanda tangan respons awal target (*baseline hash*) terhadap respons saat diinjeksi payload.
-2.  **Context-Aware Keywords**: Penyaringan cerdas yang menghapus script analitik (seperti Google Tag Manager) sebelum mencari kebocoran kredensial.
-3.  **Global Context Sharing**: Data penting seperti *Build ID* atau *Server Action IDs* yang ditemukan pada fase *fingerprint* otomatis didistribusikan ke modul penyerangan.
-4.  **Dukungan Kerentanan Kritis Baru**: 
-    *   **CVE-2025-66478 (React2Shell)**: Analisis deserialisasi RSC Flight Protocol (CVSS 10.0).
-    *   **CVE-2024-34351**: SSRF via manipulasi Host Header pada Server Actions.
-
----
-
-## ⚙️ Parameter CLI Lengkap
-
-NextSploit menyediakan antarmuka Command Line (CLI) yang fleksibel:
+### **Parameter CLI Lengkap**
 
 | Parameter | Alternatif | Deskripsi | Contoh Penggunaan |
 | :--- | :--- | :--- | :--- |
 | `-t` | `--target` | URL target aplikasi Next.js (Wajib, kecuali `--list-modules`) | `-t https://target.com` |
 | `--fingerprint` | *None* | Hanya melakukan pengenalan (versi, Build ID, Action IDs) | `--fingerprint` |
-| `--cve` | *None* | Menjalankan modul tertentu berdasarkan ID (pisahkan dengan koma) | `--cve 57822,34351` |
+| `--cve` | *None* | Menjalankan modul tertentu berdasarkan ID (pisahkan dengan koma) | `--cve 29927,46982` |
 | `--all` | *None* | Menjalankan seluruh modul pemindaian yang terdaftar | `--all` |
 | `-o` | `--output` | Menyimpan laporan pemindaian (format otomatis `.json`/`.html`/`.txt`) | `-o reports/scan.html` |
 | `-v` | *None* | Mode Verbose (menampilkan pesan debug analitis detail) | `-v` |
 | `-vv` | *None* | Mode Extra Verbose (menampilkan seluruh proses muatan HTTP/trace) | `-vv` |
+| `--browser` | *None* | **[Integrasi AnonKryptiQuz]** Meluncurkan Chrome dengan header bypass yang disuntikkan secara dinamis menggunakan Selenium CDP. | `--cve 29927 --browser` |
 | `--list-modules`| *None* | Menampilkan tabel modul pemindaian yang tersedia | `--list-modules` |
+
+### **Contoh Penggunaan**
+
+1. **Memeriksa daftar modul aktif:**
+   ```bash
+   python nextsploit.py --list-modules
+   ```
+
+2. **Melakukan deep scan pada target dengan output HTML:**
+   ```bash
+   python nextsploit.py -t https://target.com --all -o reports/scan.html
+   ```
+
+3. **Menghubungkan pemindaian CVE-2025-29927 langsung ke eksploitasi visual Chrome:**
+   ```bash
+   python nextsploit.py -t https://target.com --cve 29927 --browser
+   ```
 
 ---
 
-## 📂 Arsitektur Proyek & Alur Kerja
-
-Struktur modular NextSploit memudahkan pemeliharaan kode:
+## 📂 **Arsitektur Proyek**
 
 ```text
 NextSploit/
@@ -82,64 +113,60 @@ NextSploit/
 └── modules/
     ├── __init__.py          # Registri pemetaan modul pemindaian
     ├── fingerprint.py       # Pengenalan Next.js & ekstraksi Build ID / Action ID
-    ├── cve_57822.py         # Pemindai SSRF via Header (Akurasi Tinggi)
+    ├── cve_29927.py         # Pemindai Middleware Auth Bypass + Browser Exploit (AnonKryptiQuz)
     ├── cve_34351.py         # Pemindai SSRF via Server Action Host Header
+    ├── cve_57822.py         # Pemindai SSRF via Header (Akurasi Tinggi)
     ├── cve_66478.py         # Pemindai RCE React2Shell (Pasif)
-    ├── cve_29927.py         # Pemindai Middleware Authorization Bypass
     ├── cve_46982.py         # Pemindai Cache Poisoning / Stored XSS
     ├── cve_56332.py         # Pemindai Pathname Middleware Bypass
-    ├── cve_48068.py         # Pemindai Dev Server Source Exposure
-    └── rsc_attack.py        # Eksploitasi RSC & Prototype Pollution
+    └── cve_48068.py         # Pemindai Dev Server Source Exposure
 ```
 
-### Alur Kerja Orkestrator (`nextsploit.py`):
-1.  **Inisialisasi**: Memvalidasi URL target dan membuat session HTTP dengan User-Agent kustom.
-2.  **Fingerprinting (Fase Wajib)**: Mengekstrak metadata Next.js. Jika Build ID atau Server Action IDs ditemukan, data tersebut disimpan di objek `ScanConfig`.
-3.  **Seleksi Modul**: Menyeleksi modul yang akan dijalankan berdasarkan input user (`--cve` atau `--all`).
-4.  **Eksekusi Modul**: Memanggil fungsi `scan(config)` pada modul terpilih secara dinamis menggunakan `importlib`.
-5.  **Pelaporan**: Menyatukan seluruh temuan (`Finding`) ke dalam objek `ScanReport` dan mengekspornya ke format pilihan user.
+### **Bagaimana Orkestrator Bekerja:**
+1. **Normalisasi Target**: NextSploit memformat URL target dan mengonfigurasi sesi HTTP global.
+2. **Fingerprinting Wajib**: Melakukan perayapan aset statis (`/_next/static/chunks/`) untuk mengambil Build ID serta memeriksa header spesifik server Next.js.
+3. **Penyebaran Context**: Build ID dan Server Action ID yang ditemukan akan dibungkus di dalam objek `ScanConfig` agar semua modul dapat mengaksesnya secara runtime.
+4. **Eksekusi Pemindaian**: Modul yang terpilih diimpor secara dinamis dan dieksekusi dengan fungsi penangan `scan(config)`.
+5. **Kalkulasi Confidence**: Setiap temuan akan dianalisis tingkat akurasinya dalam skala 0.0 - 1.0 sebelum diekspor ke format laporan.
 
 ---
 
-## 💻 Panduan Integrasi & Pengembangan Modul Baru (Untuk Programmer)
+## 💻 **Panduan Ekstensi & Kustomisasi untuk Programmer**
 
-NextSploit dirancang agar sangat mudah diperluas (*extensible*). Ikuti 4 langkah ini untuk membuat modul pemindaian baru Anda sendiri:
+NextSploit dirancang agar mudah dikembangkan. Ikuti langkah-langkah berikut jika ingin menambahkan modul pemindaian kerentanan baru:
 
-### Langkah 1: Definisikan CVE Baru di Database
-Buka [core/config.py](core/config.py) dan tambahkan metadata kerentanan Anda ke dalam kamus `CVE_DATABASE`:
-
+### **1. Tambahkan Metadata Baru**
+Deklarasikan metadata CVE target Anda pada dictionary `CVE_DATABASE` di file [core/config.py](core/config.py):
 ```python
 "CVE-202X-XXXX": {
     "id": "CVE-202X-XXXX",
     "short": "XXXXX",
-    "title": "Nama Kerentanan Kustom Anda",
-    "type": "RCE / SSRF / Auth Bypass",
+    "title": "Judul Kerentanan Anda",
+    "type": "RCE / SSRF / Auth Bypass / Info Disclosure",
     "severity": "CRITICAL / HIGH / MEDIUM / LOW",
-    "fix_version": "14.X.X",
-    "description": "Deskripsi singkat tentang celah keamanan ini.",
+    "fix_version": "15.x.x",
+    "description": "Berikan penjelasan singkat mengenai celah keamanan ini.",
     "references": ["https://nvd.nist.gov/vuln/detail/CVE-202X-XXXX"]
 }
 ```
 
-### Langkah 2: Daftarkan Modul ke Registri
-Buka [modules/__init__.py](modules/__init__.py) dan daftarkan pemetaan modul:
-
+### **2. Daftarkan di Registri Modul**
+Buka [modules/__init__.py](modules/__init__.py) dan tambahkan baris pemetaan key baru:
 ```python
 "XXXXX": {
     "name": "CVE-202X-XXXX",
     "title": "Nama Singkat Modul",
-    "module": "modules.cve_xxxx",  # Nama file python di folder modules
-    "function": "scan",            # Fungsi utama yang akan dipanggil
+    "module": "modules.cve_xxxx", # Harus cocok dengan nama file python Anda
+    "function": "scan",           # Fungsi utama modul Anda
 }
 ```
 
-### Langkah 3: Tulis Kode Modul Anda (`modules/cve_xxxx.py`)
-Gunakan templat standar berikut untuk modul baru Anda agar terintegrasi sempurna dengan sistem pelaporan:
-
+### **3. Implementasikan Logika Deteksi (`modules/cve_xxxx.py`)**
+Gunakan templat boilerplate berikut untuk membangun modul pemindaian Anda:
 ```python
 #!/usr/bin/env python3
 """
-NextSploit — CVE-202X-XXXX: Judul Kerentanan
+NextSploit — CVE-202X-XXXX: Implementasi Modul Baru
 """
 
 import requests
@@ -151,7 +178,6 @@ CVE_ID = "CVE-202X-XXXX"
 CVE_INFO = CVE_DATABASE[CVE_ID]
 
 def scan(config: ScanConfig) -> ModuleResult:
-    # 1. Inisialisasi hasil modul
     result = ModuleResult(
         cve=CVE_ID,
         title=CVE_INFO["title"],
@@ -159,43 +185,37 @@ def scan(config: ScanConfig) -> ModuleResult:
         status="NOT VULNERABLE"
     )
     
-    # 2. Buat sesi HTTP terkonfigurasi
     session = config.create_session()
     target = config.target.rstrip("/")
     
     log_info(f"Memulai pemindaian {CVE_ID}...")
     
-    # [TIPS] Gunakan Build ID atau Action ID yang ditemukan modul fingerprint jika tersedia:
+    # Anda dapat memanfaatkan variabel global yang ditemukan modul fingerprint:
     # build_id = config.discovered_build_id
-    # action_ids = config.discovered_action_ids
-
-    # 3. Logika Eksploitasi / Pemindaian Anda
+    
     try:
-        url = f"{target}/api/test-endpoint"
+        url = f"{target}/endpoint-rentan-spesifik"
         r = session.get(url, timeout=config.timeout)
         
-        # Contoh kondisi jika rentan
-        if r.status_code == 200 and "vulnerable_indicator" in r.text:
-            detail = f"Ditemukan kerentanan pada {url}"
+        if r.status_code == 200 and "exploit_indicator" in r.text:
+            detail = f"Ditemukan indikasi kerentanan pada {url}"
             log_warning(detail)
             
-            # Catat bukti eksploitasi
             evidence = {
-                "endpoint": url,
-                "payload": "normal_request",
-                "indicator": "vulnerable_indicator"
+                "url": url,
+                "response_indicator": "exploit_indicator"
             }
             
             print_finding(CVE_ID, detail, evidence)
             
-            # Tambahkan temuan ke modul result
             result.add_finding(Finding(
                 cve=CVE_ID,
                 severity=CVE_INFO["severity"],
-                title="Celah Keamanan Terdeteksi",
+                title="Vulnerability Confirmed",
                 status="VULNERABLE",
                 detail=detail,
-                evidence=evidence
+                evidence=evidence,
+                confidence=0.9 # Set skor tingkat akurasi (0.0 - 1.0)
             ))
             
     except requests.RequestException as e:
@@ -206,48 +226,15 @@ def scan(config: ScanConfig) -> ModuleResult:
 
 ---
 
-## 🛡️ Panduan Remediasi & Mitigasi Celah (Untuk User/Developer)
+## ⚠️ **Disclaimer**
 
-Jika NextSploit menemukan celah keamanan pada aplikasi Next.js Anda, ikuti panduan perbaikan berikut:
-
-### 1. SSRF via Header Injection (`CVE-2025-57822`)
-*   **Penyebab**: Server Next.js memproses parameter atau header redirect (`Location`, `X-Forwarded-Host`) yang dikontrol oleh user tanpa validasi protokol/host.
-*   **Mitigasi**:
-    *   Perbarui versi Next.js Anda ke **14.2.32 / 15.0.0** atau yang lebih baru.
-    *   Jika melakukan pengalihan dinamis di kode Anda, pastikan untuk menggunakan **relative redirects** (`redirect('/dashboard')`) alih-alih menerima URL absolut dari input eksternal.
-    *   Gunakan whitelist domain jika harus melakukan pengalihan ke URL eksternal.
-
-### 2. SSRF via Server Actions Host Header (`CVE-2024-34351`)
-*   **Penyebab**: Server Actions membangun URL absolut untuk pengalihan internal menggunakan nilai header `Host` dari HTTP Request yang dapat dimanipulasi penyerang.
-*   **Mitigasi**:
-    *   Perbarui versi Next.js ke **14.1.1** atau yang lebih baru.
-    *   Pastikan konfigurasi proxy atau Load Balancer Anda (seperti Nginx atau Cloudflare) memaksa penimpaan header `Host` ke nilai internal asli yang valid dan aman.
-
-### 3. RCE via RSC Flight Protocol (`CVE-2025-66478` / React2Shell)
-*   **Penyebab**: Unsafe deserialization pada data biner Flight Protocol di Server Actions yang memungkinkan polusi prototipe (`__proto__`) untuk membajak module resolver.
-*   **Mitigasi**:
-    *   Segera perbarui Next.js ke versi patch terbaru (**15.0.5, 15.1.9, 15.2.6, 15.3.6, 15.4.8, 15.5.7**).
-    *   Matikan fitur Server Actions jika aplikasi Anda tidak membutuhkannya.
+- **Hanya untuk Edukasi & Pengujian yang Sah**: Penggunaan framework ini sepenuhnya ditujukan untuk tujuan riset keamanan, peretasan etis, dan penetration testing yang telah mendapatkan izin tertulis. User memikul tanggung jawab penuh untuk mematuhi hukum lokal yang berlaku.
+- **Tanpa Jaminan & Tanggung Jawab**: Pengembang NextSploit tidak bertanggung jawab atas segala kerusakan, kegagalan operasional server target, maupun tuntutan hukum yang disebabkan oleh penyalahgunaan framework ini.
+- **Validasi Manual Sangat Disarankan**: Hasil penemuan yang dihasilkan oleh tanda tangan otomatis sebaiknya divalidasi kembali secara manual (baik menggunakan flag `--browser` atau Burp Suite) sebelum membuat kesimpulan akhir.
 
 ---
 
-## ❓ Penyelesaian Masalah (Troubleshooting)
+## 🐐 **Penulis & Kredit**
 
-### 1. Masalah Validasi SSL / HTTPS
-*   **Gejala**: Modul gagal terhubung dengan pesan kesalahan `SSLError` atau `certificate verify failed`.
-*   **Solusi**: Secara default NextSploit melakukan validasi sertifikat SSL. Jika Anda menguji server lokal dengan sertifikat self-signed, Anda dapat memodifikasi pembuatan session pada `core/config.py` baris `verify_ssl = False`.
-
-### 2. Deteksi Terlalu Banyak False Positive (Terutama pada SSRF)
-*   **Gejala**: Semua endpoint ditandai rentan padahal server hanya mengembalikan halaman 404 atau halaman login statis.
-*   **Solusi**: Pastikan Anda menjalankan pemindaian tanpa memblokir lalu lintas baseline. NextSploit v2.0 menggunakan baseline diffing. Jika server mengembalikan response size yang selalu sama persis untuk semua payload, NextSploit v2.0 secara otomatis akan menyaring dan menyembunyikannya dari laporan akhir.
-
-### 3. Timeout di Lingkungan Jaringan Lambat
-*   **Gejala**: Kesalahan `ConnectionTimeout` terus menerus.
-*   **Solusi**: Naikkan durasi batas waktu koneksi pada inisialisasi CLI (misalnya `--timeout 20` jika didukung oleh skrip, atau edit nilai default `timeout: int = 10` di `core/config.py`).
-
----
-
-## ⚠️ Disclaimer
-**NextSploit dibuat MURNI untuk kepentingan Edukasi dan Pengujian Keamanan yang Diizinkan (*Authorized Penetration Testing*).**
-
-Segala bentuk penyalahgunaan framework ini terhadap target eksternal tanpa izin tertulis yang sah dari pemilik sistem adalah tindakan **ilegal** dan dapat dikenakan sanksi hukum sesuai undang-undang ITE yang berlaku. Pengembang tidak bertanggung jawab atas segala kerugian, kerusakan, atau tuntutan hukum yang disebabkan oleh penyalahgunaan alat ini.
+- **Pembuat Konsep Asli**: **[AnonKryptiQuz](https://AnonKryptiQuz.github.io/)** — Penemu dari kerangka pemindai awal NextSploit dan pelopor verifikasi visual bypass middleware menggunakan Selenium CDP.
+- **Refactoring & Ekspansi**: **aarsaputra** — Memodernisasi NextSploit menjadi versi 2.1 dengan kemampuan multi-CVE, validasi baseline respons, dan sistem pelaporan yang profesional.
