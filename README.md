@@ -87,6 +87,9 @@ NextSploit/
     ├── cve_34351.py         # Server Action Host-Header SSRF validator
     ├── cve_66478.py         # React2Shell RSC Deserialization scanner (Passive)
     ├── cve_29927.py         # Middleware Authorization Bypass + Browser Exploit Chain
+    ├── cve_46982.py         # Cache Poisoning / Stored XSS Scanner
+    ├── cve_56332.py         # Pathname Middleware Bypass Scanner
+    ├── cve_48068.py         # Dev Server Source Exposure Scanner
     └── rsc_attack.py        # Active RSC endpoint & Proto Pollution scanner
 ```
 

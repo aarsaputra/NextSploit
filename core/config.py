@@ -115,6 +115,55 @@ CVE_DATABASE = {
             "https://www.wiz.io/blog/critical-vulnerability-in-react-cve-2025-55182",
         ],
     },
+    "CVE-2024-46982": {
+        "id": "CVE-2024-46982",
+        "short": "46982",
+        "title": "Cache Poisoning / Stored XSS via x-now-route-matches",
+        "type": "Cache Poisoning / XSS",
+        "severity": "HIGH",
+        "fix_version": "14.2.10",
+        "description": (
+            "Vulnerability in Next.js pages router allowing cache poisoning. "
+            "An attacker can exploit fallback caching logic using x-now-route-matches "
+            "header to cache malicious responses (like XSS payloads in User-Agent) "
+            "which are then served to other users. CVSS 7.5."
+        ),
+        "references": [
+            "https://nvd.nist.gov/vuln/detail/CVE-2024-46982",
+        ],
+    },
+    "CVE-2024-56332": {
+        "id": "CVE-2024-56332",
+        "short": "56332",
+        "title": "Authorization Bypass via Pathname Middleware",
+        "type": "Auth Bypass",
+        "severity": "HIGH",
+        "fix_version": "14.2.25", # Assuming same as 29927 or general recent patch
+        "description": (
+            "If a Next.js application performs authorization in middleware based on "
+            "the request pathname, it may be possible to bypass this authorization "
+            "using pathname manipulation techniques (e.g., encoding, traversal)."
+        ),
+        "references": [
+            "https://github.com/vercel/next.js/security/advisories/GHSA-7gfc-8cq8-jh5f",
+        ],
+    },
+    "CVE-2025-48068": {
+        "id": "CVE-2025-48068",
+        "short": "48068",
+        "title": "Source Code Exposure via Dev Server",
+        "type": "Info Disclosure",
+        "severity": "LOW",
+        "fix_version": "15.2.2",
+        "description": (
+            "Next.js dev server does not properly verify request origins, allowing "
+            "source code exposure if the dev server is exposed. Attackers can fetch "
+            "internal code chunks by supplying a spoofed Origin and specific Accept headers."
+        ),
+        "references": [
+            "https://github.com/vercel/next.js/security/advisories/GHSA-3h52-269p-cp9r",
+        ],
+    },
 }
 
 

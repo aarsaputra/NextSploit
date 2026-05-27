@@ -43,4 +43,22 @@ MODULE_REGISTRY = {
         "module": "modules.rsc_attack",
         "function": "scan",
     },
+    "46982": {
+        "name": "CVE-2024-46982",
+        "title": "Cache Poisoning / Stored XSS",
+        "module": "modules.cve_46982",
+        "function": "scan",
+    },
+    "56332": {
+        "name": "CVE-2024-56332",
+        "title": "Pathname Middleware Auth Bypass",
+        "module": "modules.cve_56332",
+        "function": "scan",
+    },
+    "48068": {
+        "name": "CVE-2025-48068",
+        "title": "Dev Server Source Exposure",
+        "module": "modules.cve_48068",
+        "function": "scan",
+    },
 }

@@ -86,6 +86,9 @@ NextSploit/
     ├── cve_34351.py         # Pemindai SSRF via Server Action Host Header
     ├── cve_66478.py         # Pemindai RCE React2Shell (Pasif)
     ├── cve_29927.py         # Pemindai Middleware Authorization Bypass
+    ├── cve_46982.py         # Pemindai Cache Poisoning / Stored XSS
+    ├── cve_56332.py         # Pemindai Pathname Middleware Bypass
+    ├── cve_48068.py         # Pemindai Dev Server Source Exposure
     └── rsc_attack.py        # Eksploitasi RSC & Prototype Pollution
 ```
 

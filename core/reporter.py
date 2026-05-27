@@ -23,9 +23,21 @@ class Finding:
     status: str  # VULNERABLE, NOT VULNERABLE, ERROR
     detail: str = ""
     evidence: dict = field(default_factory=dict)
+    confidence: float = 0.5  # 0.0 - 1.0
+
+    def compute_confidence(self) -> float:
+        score = self.confidence
+        if self.severity == "CRITICAL": score += 0.2
+        elif self.severity == "HIGH":   score += 0.1
+        if self.status == "VULNERABLE": score += 0.2
+        if self.evidence.get("baseline_confirmed"): score += 0.1
+        return min(1.0, score)
 
     def to_dict(self) -> dict:
-        return asdict(self)
+        d = asdict(self)
+        d["computed_confidence"] = self.compute_confidence()
+        return d
+
 
 
 @dataclass
