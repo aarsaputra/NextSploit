@@ -24,6 +24,7 @@ from core.output import (
     log_trace, log_error, log_status, print_module_header, print_finding,
     create_progress,
 )
+from core.fp_engine import validate_prototype_pollution
 
 MODULE_NAME = "RSC-Attack"
 MODULE_TITLE = "RSC Protocol & Server Actions"
@@ -312,6 +313,11 @@ def scan(config: ScanConfig) -> ModuleResult:
                     log_status(r_rsc.status_code, rsc_path)
 
                     if r_rsc.status_code == 200 and r_rsc.text:
+                        # Prevent False Positives: Soft 404s returning homepage HTML
+                        if r_rsc.text.strip().lower().startswith("<!doctype html>") or r_rsc.text.strip().startswith("<html"):
+                            log_trace(f"Soft 404 ignored on {rsc_path} (returned HTML)")
+                            continue
+
                         detail = f"RSC data accessible: {rsc_path} ({len(r_rsc.text)} bytes)"
                         log_critical(detail)
 
@@ -395,17 +401,19 @@ def scan(config: ScanConfig) -> ModuleResult:
                     resp_hash = _hash(r.text)
                     size_diff = abs(len(r.text) - baseline_pp.get("size", 0))
 
-                    # Only flag if response genuinely differs from baseline
-                    # (not just "got a 200 response" which is always true)
-                    if (
-                        r.status_code == 200
-                        and resp_hash != baseline_pp.get("hash", "")
-                        and size_diff > 200
-                        and r.text not in ("{}", "", "null")
-                    ):
+                    is_valid, confidence, fp_reason = validate_prototype_pollution(
+                        baseline_size=baseline_pp.get("size", 0),
+                        response_size=len(r.text),
+                        baseline_hash=baseline_pp.get("hash", ""),
+                        response_hash=resp_hash,
+                        response_text=r.text,
+                        payload=payload
+                    )
+
+                    if r.status_code == 200 and r.text not in ("{}", "", "null") and is_valid:
                         detail = (
                             f"Prototype pollution causes response diff on {ep} "
-                            f"with '{desc}' (diff: {size_diff} bytes from baseline)"
+                            f"with '{desc}' (diff: {size_diff} bytes, confidence: {confidence:.2f})"
                         )
                         log_warning(detail)
                         evidence = {
@@ -416,6 +424,7 @@ def scan(config: ScanConfig) -> ModuleResult:
                             "baseline_size": f"{baseline_pp.get('size', 0)} bytes",
                             "response_size": f"{len(r.text)} bytes",
                             "size_diff": f"{size_diff} bytes",
+                            "confidence_score": f"{confidence:.2f}",
                             "preview": r.text[:300],
                         }
                         print_finding(MODULE_NAME, detail, evidence)
@@ -425,7 +434,7 @@ def scan(config: ScanConfig) -> ModuleResult:
                             status="VULNERABLE", detail=detail, evidence=evidence,
                         ))
                     else:
-                        log_trace(f"PP no diff [{ep}|{desc}]: size_diff={size_diff}")
+                        log_trace(f"PP ignored [{ep}|{desc}]: {fp_reason}")
 
                 except requests.RequestException:
                     pass

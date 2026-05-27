@@ -148,13 +148,23 @@ def scan(config: ScanConfig) -> ModuleResult:
     for endpoint in SSRF_ENDPOINTS:
         try:
             r = session.get(f"{target}{endpoint}", timeout=config.timeout, allow_redirects=False)
+            
+            # Dynamic size variance checking (try twice)
+            try:
+                r2 = session.get(f"{target}{endpoint}", timeout=config.timeout, allow_redirects=False)
+                variance = abs(len(r.text) - len(r2.text))
+            except:
+                variance = 0
+                
             baselines[endpoint] = {
                 "hash": _hash(r.text), "status": r.status_code,
                 "size": len(r.text), "location": r.headers.get("Location", ""),
+                "keywords": _find_keywords(r.text),
+                "variance": variance
             }
-            log_debug(f"Baseline [{r.status_code}] {endpoint} — {len(r.text)} bytes")
+            log_debug(f"Baseline [{r.status_code}] {endpoint} — {len(r.text)} bytes (variance: {variance})")
         except requests.RequestException:
-            baselines[endpoint] = {"hash": "", "status": 0, "size": 0, "location": ""}
+            baselines[endpoint] = {"hash": "", "status": 0, "size": 0, "location": "", "keywords": [], "variance": 0}
 
     # ── Phase 2: Header Injection with Diff Analysis ─────────────────────
     log_info("[Phase 2] Header injection SSRF (baseline diff analysis)...")
@@ -220,20 +230,28 @@ def scan(config: ScanConfig) -> ModuleResult:
                     elif r.status_code == 200 and len(r.text) > 100:
                         resp_hash = _hash(r.text)
                         base_size = baseline.get("size", 0)
+                        base_variance = baseline.get("variance", 0)
                         size_diff = abs(len(r.text) - base_size)
 
                         if resp_hash == baseline.get("hash", ""):
                             log_trace(f"Identical to baseline: {endpoint}|{hkey}")
                             continue  # No diff → not interesting
+                            
+                        # Ignore diffs that are within normal dynamic variance + margin
+                        if size_diff <= (base_variance + 100):
+                            continue
 
                         imds_hit, imds_pat = _is_imds_response(r.text)
-                        keywords = _find_keywords(r.text)
+                        
+                        raw_keywords = _find_keywords(r.text)
+                        base_keywords = baseline.get("keywords", [])
+                        keywords = [kw for kw in raw_keywords if kw not in base_keywords]
 
                         if imds_hit:
                             detail = f"IMDS data in response via {hkey} on {endpoint} (pattern: {imds_pat})"
                             log_critical(detail)
                             sev = "CRITICAL"
-                        elif keywords and size_diff > 200:
+                        elif keywords and size_diff > max(200, base_variance * 2):
                             detail = (
                                 f"Response differs from baseline via {hkey} on {endpoint} "
                                 f"(size diff: {size_diff}, keywords: {', '.join(keywords[:3])})"

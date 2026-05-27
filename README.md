@@ -2,7 +2,7 @@
 
 **NextSploit** is a modular, high-accuracy command-line penetration testing automation framework specifically designed to scan, detect, and analyze critical vulnerabilities in **Next.js** web applications. 
 
-This framework builds upon the original concept of **[AnonKryptiQuz/NextSploit](https://github.com/AnonKryptiQuz/NextSploit)**. While the original focused specifically on CVE-2025-29927, **NextSploit v2.2.0** by **aarsaputra** expands into a comprehensive Next.js auditing engine with multi-vulnerability capabilities (RCE, SSRF, Request Smuggling, DoS, Cache Poisoning, and Source Exposure), baseline validation, and an automated GitHub release checker engine.
+This framework builds upon the original concept of **[AnonKryptiQuz/NextSploit](https://github.com/AnonKryptiQuz/NextSploit)**. While the original focused specifically on CVE-2025-29927, **NextSploit v2.2.0** by **aarsaputra** (Original Author: **AnonKryptiQuz**) expands into a comprehensive Next.js auditing engine with multi-vulnerability capabilities (RCE, SSRF, Request Smuggling, DoS, Cache Poisoning, and Source Exposure), baseline validation, and an automated GitHub release checker engine.
 
 
 ---

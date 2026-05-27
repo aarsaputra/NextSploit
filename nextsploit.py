@@ -17,6 +17,8 @@ Usage:
   python nextsploit.py -t https://target.com --all -o report.json -vv
 
 Author: @lota1337
+Original Concept: AnonKryptiQuz
+Version: 2.2.0
 """
 
 import sys
@@ -376,7 +378,7 @@ def main():
                 per_target_file = f"{base}_{safe_target}{ext}"
                 report.save(per_target_file)
 
-    console.print(f"\n[dim]─── {APP_NAME} v{APP_VERSION} | @{APP_AUTHOR} ───[/dim]\n")
+    console.print(f"\n[dim]─── {APP_NAME} v{APP_VERSION} | @{APP_AUTHOR} | Based on work by @AnonKryptiQuz ───[/dim]\n")
 
 
 if __name__ == "__main__":

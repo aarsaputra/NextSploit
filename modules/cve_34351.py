@@ -206,9 +206,19 @@ def scan(config: ScanConfig) -> ModuleResult:
                 )
                 base_status = r_base.status_code
                 base_size = len(r_base.text)
-                base_hash = r_base.text[:200]
+                
+                # Dynamic size variance
+                try:
+                    r_base2 = session.post(
+                        url,
+                        headers={"Content-Type": "text/plain;charset=UTF-8", "Accept": "text/x-component"},
+                        data='["test"]', timeout=config.timeout,
+                    )
+                    base_variance = abs(len(r_base.text) - len(r_base2.text))
+                except:
+                    base_variance = 0
             except Exception:
-                base_status, base_size, base_hash = 0, 0, ""
+                base_status, base_size, base_variance = 0, 0, 0
 
             for fake_host in fake_hosts:
                 progress.update(task, advance=1)
@@ -255,11 +265,13 @@ def scan(config: ScanConfig) -> ModuleResult:
                             ))
 
                     # Check if response differs significantly with injected host
-                    elif r.status_code == 200 and abs(len(r.text) - base_size) > 500:
-                        detail = (
-                            f"Response differs with injected Host: {fake_host} on {ep} "
-                            f"(size diff: {abs(len(r.text) - base_size)} bytes)"
-                        )
+                    elif r.status_code == 200:
+                        size_diff = abs(len(r.text) - base_size)
+                        if size_diff > max(500, base_variance * 2 + 100):
+                            detail = (
+                                f"Response differs with injected Host: {fake_host} on {ep} "
+                                f"(size diff: {size_diff} bytes)"
+                            )
                         log_warning(detail)
                         evidence = {
                             "endpoint": ep,

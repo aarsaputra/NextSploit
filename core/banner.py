@@ -1,5 +1,5 @@
 # core/banner.py
-from core.version import APP_VERSION, APP_AUTHOR
+from core.version import APP_VERSION, APP_AUTHOR, APP_ORIGINAL_AUTHOR
 
 BANNER = f"""
 [bold red]╔══════════════════════════════════════════════════════════════╗[/bold red]
@@ -13,7 +13,8 @@ BANNER = f"""
 [bold red]║                                                              ║[/bold red]
 [bold red]║     [bold white]╔═══════════════════════════════════════════════════╗[/bold white]     ║[/bold red]
 [bold red]║     [bold white]║  Next.js Multi-CVE Security Auditing Framework    ║[/bold white]     ║[/bold red]
-[bold red]║     [bold white]║  Version {APP_VERSION:<8} by {APP_AUTHOR:<23}     ║[/bold white]     ║[/bold red]
+[bold red]║     [bold white]║  Version {APP_VERSION:<8} by {APP_AUTHOR:<23}      ║[/bold white]     ║[/bold red]
+[bold red]║     [bold white]║  Original Concept by {APP_ORIGINAL_AUTHOR:<15}    ║[/bold white]     ║[/bold red]
 [bold red]║     [bold white]╚═══════════════════════════════════════════════════╝[/bold white]     ║[/bold red]
 [bold red]╚══════════════════════════════════════════════════════════════╝[/bold red]
 """

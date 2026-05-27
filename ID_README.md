@@ -2,7 +2,7 @@
 
 **NextSploit** adalah framework otomatisasi *penetration testing* (uji penetrasi) modular dengan akurasi tinggi yang dirancang secara khusus untuk memindai, mendeteksi, dan menganalisis kerentanan kritis pada aplikasi web berbasis **Next.js**.
 
-Framework ini dibangun berdasarkan konsep asli dari **[AnonKryptiQuz/NextSploit](https://github.com/AnonKryptiQuz/NextSploit)**. Jika versi aslinya berfokus khusus pada CVE-2025-29927, **NextSploit v2.2.0** oleh **aarsaputra** memperluas kapabilitasnya menjadi mesin audit Next.js yang komprehensif dengan kemampuan deteksi multi-kerentanan (RCE, SSRF, Request Smuggling, DoS, Cache Poisoning, dan Source Exposure), validasi baseline untuk mengeliminasi false positive, serta mesin perhitungan skor confidence yang diadaptasi dari filter false positive standar.
+Framework ini dibangun berdasarkan konsep asli dari **[AnonKryptiQuz/NextSploit](https://github.com/AnonKryptiQuz/NextSploit)**. Jika versi aslinya berfokus khusus pada CVE-2025-29927, **NextSploit v2.2.0** oleh **aarsaputra** (Author Asli: **AnonKryptiQuz**) memperluas kapabilitasnya menjadi mesin audit Next.js yang komprehensif dengan kemampuan deteksi multi-kerentanan (RCE, SSRF, Request Smuggling, DoS, Cache Poisoning, dan Source Exposure), validasi baseline untuk mengeliminasi false positive, serta mesin perhitungan skor confidence yang diadaptasi dari filter false positive standar.
 
 
 ---

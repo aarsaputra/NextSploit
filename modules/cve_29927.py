@@ -167,10 +167,22 @@ def scan(config: ScanConfig) -> ModuleResult:
                     log_trace(f"[{bypass_status}] {path} | variant={variant}")
 
                     # ── Detect differences ───────────────────────────────
+                    baseline_is_protected = False
+                    if baseline_status in (401, 403):
+                        baseline_is_protected = True
+                    elif baseline_status in (301, 302, 307, 308):
+                        loc = r_normal.headers.get("Location", "").lower()
+                        if any(x in loc for x in ["login", "signin", "sign-in", "auth"]):
+                            baseline_is_protected = True
+                    elif baseline_status == 200:
+                        txt = r_normal.text[:500].lower()
+                        if any(x in txt for x in ["login", "sign in", "sign-in", "unauthorized"]):
+                            baseline_is_protected = True
+
                     status_diff = bypass_status != baseline_status
                     size_diff = abs(bypass_len - baseline_len) > 100
 
-                    if status_diff or size_diff:
+                    if baseline_is_protected and (status_diff or size_diff):
                         # Possible bypass detected
                         is_real_bypass = (
                             bypass_status == 200
