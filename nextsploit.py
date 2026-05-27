@@ -30,13 +30,17 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from core.config import ScanConfig, CVE_DATABASE
 from core.output import (
-    print_banner, set_verbosity, log_info, log_success,
+    set_verbosity, log_info, log_success,
     log_warning, log_error, log_critical, print_section,
     print_summary_table, console,
 )
 from core.reporter import ScanReport, ModuleResult
 from modules import MODULE_REGISTRY
 from modules.fingerprint import fingerprint
+from core.version import APP_NAME, APP_VERSION, APP_AUTHOR
+from core.banner import get_banner
+from core.updater import check_latest_version, run_self_update
+
 
 
 def parse_args():
@@ -145,6 +149,17 @@ CVE Modules:
         action="store_true",
         help="List all available scanner modules",
     )
+    info_group.add_argument(
+        "--update",
+        action="store_true",
+        help="Perform self-update via git pull and reinstall requirements",
+    )
+    info_group.add_argument(
+        "--no-update-check",
+        dest="no_update_check",
+        action="store_true",
+        help="Disable automatic update checking on startup",
+    )
 
     # ─── Exploit (AnonKryptiQuz integration) ─────────────────────────────
     exploit_group = parser.add_argument_group("Exploit (AnonKryptiQuz integration)")
@@ -160,6 +175,7 @@ CVE Modules:
     )
 
     return parser.parse_args()
+
 
 
 def list_modules():
@@ -296,9 +312,18 @@ def main():
     # Set verbosity globally
     set_verbosity(args.verbose)
 
+    # Self-update mode
+    if args.update:
+        run_self_update()
+        return
+
     # Banner
     if not args.quiet:
-        print_banner()
+        console.print(get_banner())
+
+    # Update check
+    if not args.no_update_check and not args.quiet:
+        check_latest_version()
 
     # List modules mode
     if args.list_modules:
@@ -351,8 +376,9 @@ def main():
                 per_target_file = f"{base}_{safe_target}{ext}"
                 report.save(per_target_file)
 
-    console.print("\n[dim]─── NextSploit v1.0.0 | @lota1337 ───[/dim]\n")
+    console.print(f"\n[dim]─── {APP_NAME} v{APP_VERSION} | @{APP_AUTHOR} ───[/dim]\n")
 
 
 if __name__ == "__main__":
     main()
+

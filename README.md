@@ -2,7 +2,8 @@
 
 **NextSploit** is a modular, high-accuracy command-line penetration testing automation framework specifically designed to scan, detect, and analyze critical vulnerabilities in **Next.js** web applications. 
 
-This framework builds upon the original concept of **[AnonKryptiQuz/NextSploit](https://github.com/AnonKryptiQuz/NextSploit)**. While the original focused specifically on CVE-2025-29927, **NextSploit v2.1** expands into a comprehensive Next.js auditing engine with multi-vulnerability capabilities (RCE, SSRF, Cache Poisoning, and Source Exposure), baseline validation to eliminate false positives, and a robust confidence scoring engine adapted from standard false positive filters.
+This framework builds upon the original concept of **[AnonKryptiQuz/NextSploit](https://github.com/AnonKryptiQuz/NextSploit)**. While the original focused specifically on CVE-2025-29927, **NextSploit v2.2.0** by **aarsaputra** expands into a comprehensive Next.js auditing engine with multi-vulnerability capabilities (RCE, SSRF, Request Smuggling, DoS, Cache Poisoning, and Source Exposure), baseline validation, and an automated GitHub release checker engine.
+
 
 ---
 
@@ -16,9 +17,13 @@ This framework builds upon the original concept of **[AnonKryptiQuz/NextSploit](
   - **CVE-2024-46982 (Cache Poisoning / Stored XSS)**: Tests for fallback Route Matches cache injections.
   - **CVE-2024-56332 (Pathname Middleware Bypass)**: Evaluates auth controls against traversal and URL-encoded variants.
   - **CVE-2025-48068 (Dev Server Source Exposure)**: Identifies development bundle exposures using spoofed origins.
+  - **CVE-2024-34350 (HTTP Request Smuggling)**: Analyzes targets for HTTP Smuggling and Response Queue Poisoning.
+  - **CVE-2025-59471 (Image Optimizer DoS)**: Checks for unauthenticated dynamic OOM Denial of Service API flags.
+  - **CVE-2026-23870 (RSC Deserialization DoS)**: Assesses Server Function routes against DoS deserialization exploits.
 - **⚖️ FP Reduction & Confidence Scoring**: Introduces baseline hashing, filtering out static script differences, and rates findings on a `0.0` - `1.0` confidence scale.
 - **🌐 Automated Chrome Browser Chaining**: Integrates AnonKryptiQuz's Chrome Browser Exploit Engine to automatically launch a Selenium-controlled Chrome window with preconfigured bypass headers.
-- **📡 Multiformat Reporting**: Renders findings immediately to clean CLI Rich tables and exports reports to JSON, HTML, or TXT.
+- **📡 Multiformat Reporting & Self-Update**: Renders findings immediately, supports dynamic update checking using GitHub API, and self-updates using `--update`.
+
 
 ---
 
@@ -109,7 +114,10 @@ NextSploit/
 ├── core/
 │   ├── config.py            # Shared CVE database & customized requests session
 │   ├── output.py            # Rich logging formatting functions
-│   └── reporter.py          # Multiformat report exporter (JSON, HTML, TXT)
+│   ├── reporter.py          # Multiformat report exporter (JSON, HTML, TXT)
+│   ├── version.py           # Application version constants
+│   ├── banner.py            # Custom ASCII Banner module
+│   └── updater.py           # Dynamic release checker & update routine
 └── modules/
     ├── __init__.py          # Module registry and function mapping
     ├── fingerprint.py       # Tech stack identification & build asset crawler
@@ -119,7 +127,11 @@ NextSploit/
     ├── cve_66478.py         # React2Shell RSC Deserialization scanner (Passive)
     ├── cve_46982.py         # Cache Poisoning / Stored XSS Scanner
     ├── cve_56332.py         # Pathname Middleware Bypass Scanner
-    └── cve_48068.py         # Dev Server Source Exposure Scanner
+    ├── cve_48068.py         # Dev Server Source Exposure Scanner
+    ├── cve_34350.py         # HTTP Request Smuggling Check Scanner
+    ├── cve_59471.py         # Image Optimizer DoS Check Scanner
+    └── cve_23870.py         # DoS via RSC Deserialization Scanner
+
 ```
 
 ### **How the Orchestrator Works:**
@@ -237,4 +249,5 @@ def scan(config: ScanConfig) -> ModuleResult:
 ## 🐐 **Authors & Credits**
 
 - **Original Creator**: **[AnonKryptiQuz](https://AnonKryptiQuz.github.io/)** — Author of the original NextSploit scanner and the pioneer of the browser-based Selenium CDP middleware bypass verification.
-- **Refactoring & Expansion**: **aarsaputra** — Extended into v2.1 with multi-CVE scanning, baseline verification, and a professional reporting engine.
+- **Refactoring & Expansion**: **aarsaputra** — Extended into v2.2.0 with multi-CVE scanning, baseline verification, update notification mechanism, dynamic Rich banners, and a professional reporting engine.
+

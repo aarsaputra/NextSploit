@@ -91,7 +91,10 @@ class ScanReport:
         safe = sum(1 for r in self.module_results if r.status == "NOT VULNERABLE")
         errors = sum(1 for r in self.module_results if r.status == "ERROR")
 
+        from core.version import APP_NAME, APP_VERSION
         return {
+            "tool": APP_NAME,
+            "version": APP_VERSION,
             "target": self.target,
             "scan_date": self.scan_date,
             "nextjs_version": self.nextjs_version,
@@ -106,6 +109,7 @@ class ScanReport:
                 "total_findings": sum(r.finding_count for r in self.module_results),
             },
         }
+
 
     def get_summary_rows(self) -> list:
         """Get summary data for the Rich table."""

@@ -164,7 +164,53 @@ CVE_DATABASE = {
             "https://github.com/vercel/next.js/security/advisories/GHSA-3h52-269p-cp9r",
         ],
     },
+    "CVE-2024-34350": {
+        "id": "CVE-2024-34350",
+        "short": "34350",
+        "title": "HTTP Request Smuggling / Response Queue Poisoning",
+        "type": "Request Smuggling",
+        "severity": "HIGH",
+        "fix_version": "13.5.1",
+        "description": (
+            "Under certain configurations utilizing rewrites, it may be possible to trigger "
+            "HTTP Request Smuggling / Response Queue Poisoning in Next.js applications."
+        ),
+        "references": [
+            "https://nvd.nist.gov/vuln/detail/CVE-2024-34350",
+        ],
+    },
+    "CVE-2025-59471": {
+        "id": "CVE-2025-59471",
+        "short": "59471",
+        "title": "Image Optimizer OOM Denial of Service",
+        "type": "DoS",
+        "severity": "MEDIUM",
+        "fix_version": "15.5.10",
+        "description": (
+            "Out of Memory (OOM) denial of service vulnerability in Next.js Image Optimization API "
+            "allowing unauthenticated attackers to crash the service via crafted dynamic size parameters."
+        ),
+        "references": [
+            "https://github.com/vercel/next.js/security/advisories/GHSA-958m-fp9f-f9r5",
+        ],
+    },
+    "CVE-2026-23870": {
+        "id": "CVE-2026-23870",
+        "short": "23870",
+        "title": "DoS via RSC Deserialization",
+        "type": "DoS",
+        "severity": "HIGH",
+        "fix_version": "15.5.16",
+        "description": (
+            "Denial of Service (DoS) in App Router Server Actions when handling deserialization of "
+            "malformed React Server Component (RSC) flight data, triggering unhandled promise rejections."
+        ),
+        "references": [
+            "https://github.com/vercel/next.js/security/advisories",
+        ],
+    },
 }
+
 
 
 def check_vuln_status(detected_version: str, cve_id: str) -> str:

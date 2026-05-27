@@ -61,4 +61,23 @@ MODULE_REGISTRY = {
         "module": "modules.cve_48068",
         "function": "scan",
     },
+    "34350": {
+        "name": "CVE-2024-34350",
+        "title": "HTTP Request Smuggling Check",
+        "module": "modules.cve_34350",
+        "function": "scan",
+    },
+    "59471": {
+        "name": "CVE-2025-59471",
+        "title": "Image Optimizer DoS Check",
+        "module": "modules.cve_59471",
+        "function": "scan",
+    },
+    "23870": {
+        "name": "CVE-2026-23870",
+        "title": "DoS via RSC Deserialization",
+        "module": "modules.cve_23870",
+        "function": "scan",
+    },
 }
+

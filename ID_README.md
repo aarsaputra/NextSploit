@@ -2,7 +2,8 @@
 
 **NextSploit** adalah framework otomatisasi *penetration testing* (uji penetrasi) modular dengan akurasi tinggi yang dirancang secara khusus untuk memindai, mendeteksi, dan menganalisis kerentanan kritis pada aplikasi web berbasis **Next.js**.
 
-Framework ini dibangun berdasarkan konsep asli dari **[AnonKryptiQuz/NextSploit](https://github.com/AnonKryptiQuz/NextSploit)**. Jika versi aslinya berfokus khusus pada CVE-2025-29927, **NextSploit v2.1** memperluas kapabilitasnya menjadi mesin audit Next.js yang komprehensif dengan kemampuan deteksi multi-kerentanan (RCE, SSRF, Cache Poisoning, dan Source Exposure), validasi baseline untuk mengeliminasi false positive, serta mesin perhitungan skor confidence yang diadaptasi dari filter false positive standar.
+Framework ini dibangun berdasarkan konsep asli dari **[AnonKryptiQuz/NextSploit](https://github.com/AnonKryptiQuz/NextSploit)**. Jika versi aslinya berfokus khusus pada CVE-2025-29927, **NextSploit v2.2.0** oleh **aarsaputra** memperluas kapabilitasnya menjadi mesin audit Next.js yang komprehensif dengan kemampuan deteksi multi-kerentanan (RCE, SSRF, Request Smuggling, DoS, Cache Poisoning, dan Source Exposure), validasi baseline untuk mengeliminasi false positive, serta mesin perhitungan skor confidence yang diadaptasi dari filter false positive standar.
+
 
 ---
 
@@ -16,9 +17,13 @@ Framework ini dibangun berdasarkan konsep asli dari **[AnonKryptiQuz/NextSploit]
   - **CVE-2024-46982 (Cache Poisoning / Stored XSS)**: Menguji injeksi cache pada fallback Route Matches.
   - **CVE-2024-56332 (Pathname Middleware Bypass)**: Mengevaluasi kontrol otorisasi terhadap varian traversal dan URL-encoding.
   - **CVE-2025-48068 (Dev Server Source Exposure)**: Mengidentifikasi paparan bundel kode sumber di server pengembangan menggunakan spoofing origin.
+  - **CVE-2024-34350 (HTTP Request Smuggling)**: Menganalisis target dari HTTP Request Smuggling dan Response Queue Poisoning.
+  - **CVE-2025-59471 (Image Optimizer DoS)**: Memeriksa kerentanan dynamic OOM Denial of Service secara unauthenticated.
+  - **CVE-2026-23870 (RSC Deserialization DoS)**: Mengevaluasi rute fungsi Server Actions terhadap eksploitasi DoS.
 - **⚖️ Pengurangan FP & Skor Confidence**: Memperkenalkan perbandingan baseline respons awal untuk menyaring perbedaan dinamis pada script analitik, serta menilai temuan dalam skala `0.0` - `1.0`.
 - **🌐 Otomasi Chaining Browser**: Mengintegrasikan Browser Exploit Engine milik AnonKryptiQuz untuk meluncurkan jendela Chrome yang dikendalikan oleh Selenium dengan header bypass yang telah dikonfigurasi melalui CDP.
-- **📡 Laporan Multiformat**: Menampilkan temuan secara instan pada CLI Rich yang bersih dan mengekspor laporan lengkap ke format JSON, HTML, atau TXT.
+- **📡 Laporan Multiformat & Self-Update**: Renders temuan secara instan ke Rich CLI, mendukung pengecekan pembaruan via GitHub API, serta fitur auto-updater `--update`.
+
 
 ---
 
@@ -109,7 +114,10 @@ NextSploit/
 ├── core/
 │   ├── config.py            # Basis data CVE global dan manajemen sesi HTTP
 │   ├── output.py            # Format keluaran CLI interaktif menggunakan Rich
-│   └── reporter.py          # Sistem penulisan laporan (JSON, HTML, TXT)
+│   ├── reporter.py          # Sistem penulisan laporan (JSON, HTML, TXT)
+│   ├── version.py           # Konstanta versi aplikasi
+│   ├── banner.py            # Modul ASCII Banner kustom
+│   └── updater.py           # Pemeriksa rilis baru & rutinitas update otomatis
 └── modules/
     ├── __init__.py          # Registri pemetaan modul pemindaian
     ├── fingerprint.py       # Pengenalan Next.js & ekstraksi Build ID / Action ID
@@ -119,7 +127,11 @@ NextSploit/
     ├── cve_66478.py         # Pemindai RCE React2Shell (Pasif)
     ├── cve_46982.py         # Pemindai Cache Poisoning / Stored XSS
     ├── cve_56332.py         # Pemindai Pathname Middleware Bypass
-    └── cve_48068.py         # Pemindai Dev Server Source Exposure
+    ├── cve_48068.py         # Pemindai Dev Server Source Exposure
+    ├── cve_34350.py         # Pemindai HTTP Request Smuggling
+    ├── cve_59471.py         # Pemindai Image Optimizer DoS
+    └── cve_23870.py         # Pemindai DoS via RSC Deserialization
+
 ```
 
 ### **Bagaimana Orkestrator Bekerja:**
@@ -237,4 +249,5 @@ def scan(config: ScanConfig) -> ModuleResult:
 ## 🐐 **Penulis & Kredit**
 
 - **Pembuat Konsep Asli**: **[AnonKryptiQuz](https://AnonKryptiQuz.github.io/)** — Penemu dari kerangka pemindai awal NextSploit dan pelopor verifikasi visual bypass middleware menggunakan Selenium CDP.
-- **Refactoring & Ekspansi**: **aarsaputra** — Memodernisasi NextSploit menjadi versi 2.1 dengan kemampuan multi-CVE, validasi baseline respons, dan sistem pelaporan yang profesional.
+- **Refactoring & Ekspansi**: **aarsaputra** — Memodernisasi NextSploit menjadi versi 2.2.0 dengan kemampuan multi-CVE, validasi baseline respons, mekanisme notifikasi update, Rich banner interaktif, dan sistem pelaporan yang profesional.
+
