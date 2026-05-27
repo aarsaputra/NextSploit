@@ -1,0 +1,46 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# NextSploit specific output & reports
+reports/
+scan*.json
+*.html
+*.txt
+*.json
+
+# Raw development / testing scripts (not part of the framework)
+step*.py
+research.md
+
+# Legacy standalone scripts (superseded by modules/)
+CVE-2025-55183.py
+CVE-2025-57822.py
+MiddlewareBypass.py
+RSC.py
+exploit_middleware_bypass.py
+
+# Virtual Environments
+venv/
+env/
+ENV/
+.venv/
+env.bak/
+venv.bak/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Secrets / Environment Variables
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+credentials.json
+secrets.json
