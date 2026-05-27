@@ -272,20 +272,20 @@ def scan(config: ScanConfig) -> ModuleResult:
                                 f"Response differs with injected Host: {fake_host} on {ep} "
                                 f"(size diff: {size_diff} bytes)"
                             )
-                        log_warning(detail)
-                        evidence = {
-                            "endpoint": ep,
-                            "injected_host": fake_host,
-                            "baseline_size": f"{base_size} bytes",
-                            "response_size": f"{len(r.text)} bytes",
-                            "note": "Host header may influence Server Action URL construction",
-                        }
-                        print_finding(CVE_ID, detail, evidence)
-                        result.add_finding(Finding(
-                            cve=CVE_ID, severity="HIGH",
-                            title="Server Action Host-Sensitive Response",
-                            status="VULNERABLE", detail=detail, evidence=evidence,
-                        ))
+                            log_warning(detail)
+                            evidence = {
+                                "endpoint": ep,
+                                "injected_host": fake_host,
+                                "baseline_size": f"{base_size} bytes",
+                                "response_size": f"{len(r.text)} bytes",
+                                "note": "Host header may influence Server Action URL construction",
+                            }
+                            print_finding(CVE_ID, detail, evidence)
+                            result.add_finding(Finding(
+                                cve=CVE_ID, severity="HIGH",
+                                title="Server Action Host-Sensitive Response",
+                                status="VULNERABLE", detail=detail, evidence=evidence,
+                            ))
 
                 except requests.RequestException as e:
                     log_trace(f"Error {ep}|Host:{fake_host}: {e}")
