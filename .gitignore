@@ -8,6 +8,7 @@ reports/
 scan*.json
 *.html
 *.txt
+!requirements.txt
 *.json
 
 # Raw development / testing scripts (not part of the framework)
