@@ -1,23 +1,29 @@
 # core/banner.py
 from core.version import APP_VERSION, APP_AUTHOR, APP_ORIGINAL_AUTHOR
+from rich.panel import Panel
+from rich.align import Align
+from rich.text import Text
 
-BANNER = f"""
-[bold red]╔══════════════════════════════════════════════════════════════╗[/bold red]
-[bold red]║                                                              ║[/bold red]
-[bold red]║     ███╗   ██╗███████╗██╗  ██╗████████╗███████╗██████╗       ║[/bold red]
-[bold red]║     ████╗  ██║██╔════╝╚██╗██╔╝╚══██╔══╝██╔════╝██╔══██╗      ║[/bold red]
-[bold red]║     ██╔██╗ ██║█████╗   ╚███╔╝    ██║   ███████╗██████╔╝      ║[/bold red]
-[bold red]║     ██║╚██╗██║██╔══╝   ██╔██╗    ██║   ╚════██║██╔═══╝       ║[/bold red]
-[bold red]║     ██║ ╚████║███████╗██╔╝ ██╗   ██║   ███████║██║           ║[/bold red]
-[bold red]║     ╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝           ║[/bold red]
-[bold red]║                                                              ║[/bold red]
-[bold red]║     [bold white]╔═══════════════════════════════════════════════════╗[/bold white]     ║[/bold red]
-[bold red]║     [bold white]║  Next.js Multi-CVE Security Auditing Framework    ║[/bold white]     ║[/bold red]
-[bold red]║     [bold white]║  Version {APP_VERSION:<8} by {APP_AUTHOR:<23}      ║[/bold white]     ║[/bold red]
-[bold red]║     [bold white]║  Original Concept by {APP_ORIGINAL_AUTHOR:<15}    ║[/bold white]     ║[/bold red]
-[bold red]║     [bold white]╚═══════════════════════════════════════════════════╝[/bold white]     ║[/bold red]
-[bold red]╚══════════════════════════════════════════════════════════════╝[/bold red]
+ASCII_ART = """
+███╗   ██╗███████╗██╗  ██╗████████╗███████╗██████╗ 
+████╗  ██║██╔════╝╚██╗██╔╝╚══██╔══╝██╔════╝██╔══██╗
+██╔██╗ ██║█████╗   ╚███╔╝    ██║   ███████╗██████╔╝
+██║╚██╗██║██╔══╝   ██╔██╗    ██║   ╚════██║██╔═══╝ 
+██║ ╚████║███████╗██╔╝ ██╗   ██║   ███████║██║     
+╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝     
 """
 
-def get_banner() -> str:
-    return BANNER
+def get_banner() -> Panel:
+    text = Text()
+    text.append(ASCII_ART, style="bold red")
+    text.append("\nNext.js Multi-CVE Security Auditing Framework\n", style="bold white")
+    text.append(f"Version {APP_VERSION} by {APP_AUTHOR}\n", style="white")
+    text.append(f"Original Concept by {APP_ORIGINAL_AUTHOR}", style="dim white")
+    
+    panel = Panel(
+        Align.center(text),
+        border_style="red",
+        padding=(1, 2),
+        width=70
+    )
+    return panel
