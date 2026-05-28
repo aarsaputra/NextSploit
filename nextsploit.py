@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 NextSploit — Next.js Vulnerability Scanner & Exploit Tool
-Version 1.0.0
+Version 2.2.0
 
 Unified tool combining multiple Next.js CVE scanners:
   - CVE-2025-29927: Middleware Authorization Bypass
@@ -13,19 +13,20 @@ Unified tool combining multiple Next.js CVE scanners:
 Usage:
   python nextsploit.py -t https://target.com --all
   python nextsploit.py -t https://target.com --cve 29927,57822 -v
-  python nextsploit.py -t https://target.com --fingerprint
+  python nextsploit.py -c config.json
   python nextsploit.py -t https://target.com --all -o report.json -vv
 
 Author: @lota1337
 Original Concept: AnonKryptiQuz
-Version: 2.2.0
 """
 
 import sys
 import os
+import json
 import argparse
 import importlib
 from datetime import datetime
+from typing import Dict, Any
 
 # Ensure project root is in path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -44,8 +45,8 @@ from core.banner import get_banner
 from core.updater import check_latest_version, run_self_update
 
 
-
-def parse_args():
+def parse_args() -> argparse.Namespace:
+    """Parse CLI arguments."""
     parser = argparse.ArgumentParser(
         prog="nextsploit",
         description="NextSploit — Next.js Vulnerability Scanner & Exploit Tool",
@@ -53,34 +54,34 @@ def parse_args():
         epilog="""
 Examples:
   %(prog)s -t https://target.com --all                    Full scan
-  %(prog)s -t https://target.com --cve 29927              Single CVE scan
+  %(prog)s -c config.json                                 Scan using config file
   %(prog)s -t https://target.com --cve 29927,57822 -v     Multi CVE, verbose
-  %(prog)s -t https://target.com --fingerprint             Version detection only
-  %(prog)s -t https://target.com --all -o report.json      Save JSON report
-  %(prog)s -t https://target.com --all -o report.html -vv  HTML report, extra verbose
-  %(prog)s -t https://target.com --all --proxy http://127.0.0.1:8080
-
-CVE Modules:
-  29927   Middleware Auth Bypass (Critical)
-  57822   SSRF via Headers (High)
-  55183   Source Code Exposure (High)
-  55184   DoS Detection — Passive (Medium)
-  rsc     RSC Protocol & Server Actions (High)
+  %(prog)s -t https://target.com --fingerprint            Version detection only
         """,
     )
 
-    # ─── Target ──────────────────────────────────────────────────────────
-    target_group = parser.add_argument_group("Target")
-    target_group.add_argument(
+    # ─── Core Options ────────────────────────────────────────────────────────
+    core_group = parser.add_argument_group("Core")
+    core_group.add_argument(
         "-t", "--target",
         help="Target URL (e.g., https://target.com)",
     )
-    target_group.add_argument(
+    core_group.add_argument(
         "-T", "--target-file",
         help="File containing target URLs (one per line)",
     )
+    core_group.add_argument(
+        "-c", "--config",
+        help="Path to JSON configuration file for automation",
+    )
+    core_group.add_argument(
+        "-V", "--version",
+        action="version",
+        version=f"{APP_NAME} v{APP_VERSION} by @{APP_AUTHOR}",
+        help="Show program's version number and exit",
+    )
 
-    # ─── Scan Mode ───────────────────────────────────────────────────────
+    # ─── Scan Mode ───────────────────────────────────────────────────────────
     scan_group = parser.add_argument_group("Scan Mode")
     scan_group.add_argument(
         "--all",
@@ -97,7 +98,7 @@ CVE Modules:
         help="Only fingerprint Next.js version (no exploit)",
     )
 
-    # ─── Output ──────────────────────────────────────────────────────────
+    # ─── Output ──────────────────────────────────────────────────────────────
     output_group = parser.add_argument_group("Output")
     output_group.add_argument(
         "-o", "--output",
@@ -115,7 +116,7 @@ CVE Modules:
         help="Suppress banner and non-essential output",
     )
 
-    # ─── Connection ──────────────────────────────────────────────────────
+    # ─── Connection ──────────────────────────────────────────────────────────
     conn_group = parser.add_argument_group("Connection")
     conn_group.add_argument(
         "--timeout",
@@ -144,8 +145,8 @@ CVE Modules:
         help="Disable SSL certificate verification",
     )
 
-    # ─── Info ────────────────────────────────────────────────────────────
-    info_group = parser.add_argument_group("Info")
+    # ─── Info & Automation ───────────────────────────────────────────────────
+    info_group = parser.add_argument_group("Info & Automation")
     info_group.add_argument(
         "--list-modules",
         action="store_true",
@@ -163,24 +164,65 @@ CVE Modules:
         help="Disable automatic update checking on startup",
     )
 
-    # ─── Exploit (AnonKryptiQuz integration) ─────────────────────────────
-    exploit_group = parser.add_argument_group("Exploit (AnonKryptiQuz integration)")
+    # ─── Exploit (AnonKryptiQuz integration) ─────────────────────────────────
+    exploit_group = parser.add_argument_group("Exploit Engine")
     exploit_group.add_argument(
         "--browser",
         action="store_true",
-        help=(
-            "After CVE-2025-29927 bypass is confirmed (CRITICAL), automatically "
-            "open Chrome with the x-middleware-subrequest header pre-set "
-            "[requires: selenium + chromedriver]. "
-            "Browser exploit engine by AnonKryptiQuz/NextSploit."
-        ),
+        help="Trigger Selenium browser exploit on critical bypass detection",
     )
 
     return parser.parse_args()
 
 
+def load_config_file(filepath: str) -> Dict[str, Any]:
+    """Parse JSON configuration for CI/CD automation and overriding defaults."""
+    if not os.path.isfile(filepath):
+        log_error(f"Configuration file not found: {filepath}")
+        sys.exit(1)
+        
+    try:
+        with open(filepath, 'r') as f:
+            return json.load(f)
+    except json.JSONDecodeError as e:
+        log_error(f"Syntax error in JSON config '{filepath}': {e}")
+        sys.exit(1)
+    except Exception as e:
+        log_error(f"Failed to read config file '{filepath}': {e}")
+        sys.exit(1)
 
-def list_modules():
+
+def build_scan_config(target: str, args: argparse.Namespace, file_cfg: Dict[str, Any]) -> ScanConfig:
+    """Factory function to build ScanConfig by merging CLI args and JSON file config."""
+    # Priority: CLI arguments (if explicitly set) > File Config > Defaults
+    
+    timeout = file_cfg.get("timeout", args.timeout) if args.timeout == 10 else args.timeout
+    threads = file_cfg.get("threads", args.threads) if args.threads == 10 else args.threads
+    proxy = args.proxy or file_cfg.get("proxy")
+    output = args.output or file_cfg.get("output")
+    user_agent = args.user_agent or file_cfg.get("user_agent")
+    
+    # Booleans
+    verify_ssl = file_cfg.get("verify_ssl", not args.no_verify) if not args.no_verify else False
+    browser_exploit = getattr(args, "browser", False) or file_cfg.get("browser", False)
+    
+    config = ScanConfig(
+        target=target,
+        timeout=timeout,
+        threads=threads,
+        verbosity=args.verbose or file_cfg.get("verbose", 0),
+        proxy=proxy,
+        verify_ssl=verify_ssl,
+        output_file=output,
+        browser_exploit=browser_exploit,
+    )
+    if user_agent:
+        config.user_agent = user_agent
+        
+    return config
+
+
+def list_modules() -> None:
     """Print available modules."""
     from rich.table import Table
     from rich import box
@@ -211,7 +253,7 @@ def validate_target(url: str) -> str:
 
 
 def run_module(mod_id: str, config: ScanConfig) -> ModuleResult:
-    """Dynamically import and run a scanner module."""
+    """Dynamically import and execute a scanner module."""
     mod_info = MODULE_REGISTRY.get(mod_id)
     if not mod_info:
         log_error(f"Unknown module: {mod_id}")
@@ -235,53 +277,37 @@ def run_module(mod_id: str, config: ScanConfig) -> ModuleResult:
         )
 
 
-def scan_target(target: str, args) -> ScanReport:
-    """Run full scan pipeline on a single target."""
+def scan_target(target: str, config: ScanConfig, run_all: bool, cve_args: str, run_fingerprint: bool) -> ScanReport:
+    """Execute the core scanning workflow for a specific target."""
     target = validate_target(target)
-
-    # Build config
-    config = ScanConfig(
-        target=target,
-        timeout=args.timeout,
-        threads=args.threads,
-        verbosity=args.verbose,
-        proxy=args.proxy,
-        verify_ssl=not args.no_verify,
-        output_file=args.output,
-        browser_exploit=getattr(args, "browser", False),
-    )
-    if args.user_agent:
-        config.user_agent = args.user_agent
-
+    config.target = target
     report = ScanReport(target)
 
-    # ─── Fingerprint ─────────────────────────────────────────────────────
+    # ─── Fingerprint Phase ───────────────────────────────────────────────────
     fp_result = fingerprint(config)
     report.nextjs_version = fp_result["version"]
     report.build_id = fp_result["build_id"]
     report.vuln_matrix = fp_result["vuln_matrix"]
 
-    if args.fingerprint:
-        # Fingerprint only mode — stop here
+    if run_fingerprint:
         return report
 
-    # ─── Determine modules to run ────────────────────────────────────────
-    if args.all:
+    # ─── Module Selection Phase ──────────────────────────────────────────────
+    if run_all:
         modules_to_run = list(MODULE_REGISTRY.keys())
-    elif args.cve:
-        modules_to_run = [c.strip() for c in args.cve.split(",")]
-        # Validate
+    elif cve_args:
+        modules_to_run = [c.strip() for c in cve_args.split(",")]
+        # Validate existence
         invalid = [m for m in modules_to_run if m not in MODULE_REGISTRY]
         if invalid:
             log_error(f"Unknown module(s): {', '.join(invalid)}")
             log_info(f"Available: {', '.join(MODULE_REGISTRY.keys())}")
             modules_to_run = [m for m in modules_to_run if m in MODULE_REGISTRY]
     else:
-        log_warning("No scan mode specified. Use --all or --cve <id>")
-        log_info("Use --list-modules to see available modules")
+        log_warning("No scan mode specified. Use --all, --cve <id>, or configure via JSON.")
         return report
 
-    # ─── Run modules ─────────────────────────────────────────────────────
+    # ─── Execution Phase ─────────────────────────────────────────────────────
     print_section(
         "Running Scanner Modules",
         f"Modules: {', '.join(modules_to_run)} | Target: {target}"
@@ -291,7 +317,7 @@ def scan_target(target: str, args) -> ScanReport:
         mod_result = run_module(mod_id, config)
         report.add_result(mod_result)
 
-    # ─── Summary ─────────────────────────────────────────────────────────
+    # ─── Reporting Phase ─────────────────────────────────────────────────────
     print_summary_table(report.get_summary_rows())
 
     total_findings = sum(r.finding_count for r in report.module_results)
@@ -308,79 +334,88 @@ def scan_target(target: str, args) -> ScanReport:
     return report
 
 
-def main():
+def main() -> None:
     args = parse_args()
 
-    # Set verbosity globally
-    set_verbosity(args.verbose)
+    # Base configuration from file (if provided)
+    file_cfg = {}
+    if args.config:
+        file_cfg = load_config_file(args.config)
 
-    # Self-update mode
+    # Set verbosity globally
+    merged_verbosity = args.verbose or file_cfg.get("verbose", 0)
+    set_verbosity(merged_verbosity)
+
+    # Interactive Flags
     if args.update:
         run_self_update()
         return
 
-    # Banner
     if not args.quiet:
         console.print(get_banner())
 
-    # Update check
     if not args.no_update_check and not args.quiet:
         check_latest_version()
 
-    # List modules mode
     if args.list_modules:
         list_modules()
         return
 
-    # Validate target
-    if not args.target and not args.target_file:
-        log_error("No target specified. Use -t <url> or -T <file>")
-        sys.exit(1)
-
-    # Create reports directory
-    os.makedirs("reports", exist_ok=True)
-
-    # ─── Single target mode ──────────────────────────────────────────────
+    # Determine targets
+    targets = []
     if args.target:
-        log_info(f"Target: [bold]{args.target}[/bold]")
-        log_info(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-
-        report = scan_target(args.target, args)
-
-        if args.output:
-            report.save(args.output)
-
-        log_info(f"Finished: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-
-    # ─── Multi-target mode ───────────────────────────────────────────────
+        targets.append(args.target)
     elif args.target_file:
         if not os.path.isfile(args.target_file):
             log_error(f"Target file not found: {args.target_file}")
             sys.exit(1)
-
         with open(args.target_file) as f:
             targets = [line.strip() for line in f if line.strip() and not line.startswith("#")]
+    elif "targets" in file_cfg:
+        targets = file_cfg["targets"]
 
-        log_info(f"Loaded [bold]{len(targets)}[/bold] targets from {args.target_file}")
+    if not targets:
+        log_error("No target specified. Use -t <url>, -T <file>, or specify 'targets' in --config")
+        sys.exit(1)
 
-        for i, target_url in enumerate(targets, 1):
+    # Merge scan logic parameters
+    run_all = args.all or file_cfg.get("all", False)
+    cve_args = args.cve or file_cfg.get("cve", "")
+    run_fingerprint = args.fingerprint or file_cfg.get("fingerprint", False)
+
+    # Create reports directory
+    os.makedirs("reports", exist_ok=True)
+
+    # Execute Scan
+    log_info(f"Loaded [bold]{len(targets)}[/bold] target(s). Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
+    for i, target_url in enumerate(targets, 1):
+        if len(targets) > 1:
             log_info(f"\n{'='*60}")
             log_info(f"Target [{i}/{len(targets)}]: [bold]{target_url}[/bold]")
             log_info(f"{'='*60}")
 
-            report = scan_target(target_url, args)
+        # Build clean config specifically for this target
+        config = build_scan_config(target_url, args, file_cfg)
+        
+        # Run execution pipeline
+        report = scan_target(target_url, config, run_all, cve_args, run_fingerprint)
 
-            # Auto-save per target
-            if args.output:
-                ext = os.path.splitext(args.output)[1] or ".json"
-                base = os.path.splitext(args.output)[0]
+        # Output handling
+        output_path = config.output_file
+        if output_path:
+            if len(targets) > 1:
+                # Auto-append target name to prevent overwriting in multi-target scans
+                ext = os.path.splitext(output_path)[1] or ".json"
+                base = os.path.splitext(output_path)[0]
                 safe_target = target_url.replace("https://", "").replace("http://", "").replace("/", "_")
-                per_target_file = f"{base}_{safe_target}{ext}"
-                report.save(per_target_file)
+                output_path = f"{base}_{safe_target}{ext}"
+                
+            report.save(output_path)
 
+    log_info(f"Finished all scans at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     console.print(f"\n[dim]─── {APP_NAME} v{APP_VERSION} | @{APP_AUTHOR} | Based on work by @AnonKryptiQuz ───[/dim]\n")
 
 
 if __name__ == "__main__":
     main()
-
