@@ -84,9 +84,14 @@ Examples:
     # ─── Scan Mode ───────────────────────────────────────────────────────────
     scan_group = parser.add_argument_group("Scan Mode")
     scan_group.add_argument(
+        "--auto",
+        action="store_true",
+        help="Auto-run only modules applicable to the detected Next.js version (Default)",
+    )
+    scan_group.add_argument(
         "--all",
         action="store_true",
-        help="Run all scanner modules",
+        help="Run all scanner modules forcefully",
     )
     scan_group.add_argument(
         "--cve",
@@ -304,8 +309,22 @@ def scan_target(target: str, config: ScanConfig, run_all: bool, cve_args: str, r
             log_info(f"Available: {', '.join(MODULE_REGISTRY.keys())}")
             modules_to_run = [m for m in modules_to_run if m in MODULE_REGISTRY]
     else:
-        log_warning("No scan mode specified. Use --all, --cve <id>, or configure via JSON.")
-        return report
+        # Default workflow: Auto-select based on fingerprinting
+        log_info("Auto-selecting modules based on fingerprint vulnerability matrix...")
+        modules_to_run = []
+        for vuln in report.vuln_matrix:
+            if vuln["status"] in ("VULNERABLE", "UNKNOWN"):
+                short_id = vuln["cve"].split("-")[-1]
+                if short_id in MODULE_REGISTRY:
+                    modules_to_run.append(short_id)
+        
+        # Always run general RSC attack module if auto-scanning
+        if "rsc" in MODULE_REGISTRY and "rsc" not in modules_to_run:
+            modules_to_run.append("rsc")
+
+        if not modules_to_run:
+            log_success("Target is not vulnerable to any known CVEs. No modules to run.")
+            return report
 
     # ─── Execution Phase ─────────────────────────────────────────────────────
     print_section(
