@@ -142,7 +142,8 @@ class ScanReport:
             filepath = filepath + ".json"
             self._save_json(filepath)
 
-        log_success(f"Report saved to [bold]{filepath}[/bold]")
+        abs_path = os.path.abspath(filepath)
+        log_success(f"Report saved to [bold]{abs_path}[/bold]")
 
     def _save_json(self, filepath: str):
         with open(filepath, "w", encoding="utf-8") as f:

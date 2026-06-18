@@ -422,15 +422,19 @@ def main() -> None:
 
         # Output handling
         output_path = config.output_file
-        if output_path:
-            if len(targets) > 1:
-                # Auto-append target name to prevent overwriting in multi-target scans
-                ext = os.path.splitext(output_path)[1] or ".json"
-                base = os.path.splitext(output_path)[0]
-                safe_target = target_url.replace("https://", "").replace("http://", "").replace("/", "_")
-                output_path = f"{base}_{safe_target}{ext}"
-                
-            report.save(output_path)
+        safe_target = target_url.replace("https://", "").replace("http://", "").replace("/", "_")
+        
+        if not output_path:
+            # Auto-generate a report in the reports/ directory
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            output_path = f"reports/scan_{safe_target}_{timestamp}.json"
+        elif len(targets) > 1:
+            # Auto-append target name to prevent overwriting in multi-target scans
+            ext = os.path.splitext(output_path)[1] or ".json"
+            base = os.path.splitext(output_path)[0]
+            output_path = f"{base}_{safe_target}{ext}"
+            
+        report.save(output_path)
 
     log_info(f"Finished all scans at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     console.print(f"\n[dim]─── {APP_NAME} v{APP_VERSION} | @{APP_AUTHOR} | Based on work by @AnonKryptiQuz ───[/dim]\n")
