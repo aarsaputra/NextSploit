@@ -23,6 +23,7 @@ import requests
 
 from core.config import ScanConfig, CVE_DATABASE
 from core.reporter import ModuleResult, Finding
+from core.waf_bypass import WAFBypass
 from core.output import (
     log_info, log_success, log_warning, log_critical, log_debug,
     log_trace, log_error, print_module_header, print_finding, create_progress,
@@ -222,15 +223,27 @@ def scan(config: ScanConfig) -> ModuleResult:
 
             for fake_host in fake_hosts:
                 progress.update(task, advance=1)
+                
+                # Apply WAF Bypass to Host and Headers
+                attack_host = fake_host
+                if config.waf_bypass:
+                    if "127.0.0.1" in attack_host:
+                        attack_host = attack_host.replace("127.0.0.1", WAFBypass.get_hex_ip("127.0.0.1"))
+                        
+                req_headers = {
+                    "Host": attack_host,
+                    "Origin": f"http://{attack_host}",
+                    "Content-Type": "text/plain;charset=UTF-8",
+                    "Accept": "text/x-component",
+                }
+                
+                if config.waf_bypass:
+                    req_headers = WAFBypass.manipulate_headers(req_headers)
+
                 try:
                     r = session.post(
                         url,
-                        headers={
-                            "Host": fake_host,
-                            "Origin": f"http://{fake_host}",
-                            "Content-Type": "text/plain;charset=UTF-8",
-                            "Accept": "text/x-component",
-                        },
+                        headers=req_headers,
                         data='["test"]',
                         timeout=config.timeout,
                     )
@@ -300,16 +313,28 @@ def scan(config: ScanConfig) -> ModuleResult:
 
         # Test: Does server follow our redirect when Accept: text/x-component?
         for ssrf_target in SSRF_REDIRECT_TARGETS[:3]:
+            # Apply IP obfuscation
+            test_target = ssrf_target
+            if config.waf_bypass:
+                if "169.254.169.254" in test_target:
+                    test_target = test_target.replace("169.254.169.254", WAFBypass.get_hex_ip("169.254.169.254"))
+            
+            payload_data = f'["redirect","{test_target}"]'
+            req_headers = {
+                "Content-Type": "text/plain;charset=UTF-8",
+                "Accept": "text/x-component",
+                "Next-Action": probe_ids[0] if probe_ids else "00000000",
+                "Referer": f"http://169.254.169.254/",
+            }
+            
+            if config.waf_bypass:
+                req_headers = WAFBypass.manipulate_headers(req_headers)
+
             try:
                 r = session.post(
                     url,
-                    headers={
-                        "Content-Type": "text/plain;charset=UTF-8",
-                        "Accept": "text/x-component",
-                        "Next-Action": probe_ids[0] if probe_ids else "00000000",
-                        "Referer": f"http://169.254.169.254/",
-                    },
-                    data=f'["redirect","{ssrf_target}"]',
+                    headers=req_headers,
+                    data=payload_data,
                     timeout=config.timeout,
                     allow_redirects=True,  # Follow redirects to see final destination
                 )

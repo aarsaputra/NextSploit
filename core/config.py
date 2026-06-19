@@ -260,6 +260,7 @@ class ScanConfig:
     discovered_action_ids: list = field(default_factory=list)
     # Browser exploit integration (AnonKryptiQuz chaining)
     browser_exploit: bool = False
+    waf_bypass: bool = False
 
     @property
     def proxies(self) -> Optional[dict]:

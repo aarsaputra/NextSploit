@@ -149,6 +149,11 @@ Examples:
         action="store_true",
         help="Disable SSL certificate verification",
     )
+    conn_group.add_argument(
+        "--waf-bypass",
+        action="store_true",
+        help="Enable advanced WAF/Cloudflare evasion techniques",
+    )
 
     # ─── Info & Automation ───────────────────────────────────────────────────
     info_group = parser.add_argument_group("Info & Automation")
@@ -210,6 +215,7 @@ def build_scan_config(target: str, args: argparse.Namespace, file_cfg: Dict[str,
     # Booleans
     verify_ssl = file_cfg.get("verify_ssl", not args.no_verify) if not args.no_verify else False
     browser_exploit = getattr(args, "browser", False) or file_cfg.get("browser", False)
+    waf_bypass = getattr(args, "waf_bypass", False) or file_cfg.get("waf_bypass", False)
     
     config = ScanConfig(
         target=target,
@@ -220,6 +226,7 @@ def build_scan_config(target: str, args: argparse.Namespace, file_cfg: Dict[str,
         verify_ssl=verify_ssl,
         output_file=output,
         browser_exploit=browser_exploit,
+        waf_bypass=waf_bypass,
     )
     if user_agent:
         config.user_agent = user_agent

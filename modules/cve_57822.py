@@ -20,6 +20,7 @@ import concurrent.futures
 
 from core.config import ScanConfig, CVE_DATABASE
 from core.reporter import ModuleResult, Finding
+from core.waf_bypass import WAFBypass
 from core.output import (
     log_info, log_success, log_warning, log_critical, log_debug,
     log_trace, log_error, log_status, print_module_header, print_finding,
@@ -176,10 +177,21 @@ def scan(config: ScanConfig) -> ModuleResult:
                 progress.update(task, advance=1)
                 hkey = list(payload.keys())[0]
                 hval = payload[hkey]
+                
+                # Apply WAF Bypass if enabled
+                if config.waf_bypass:
+                    if "127.0.0.1" in hval:
+                        hval = hval.replace("127.0.0.1", WAFBypass.get_hex_ip("127.0.0.1"))
+                    if "localhost" in hval:
+                        hval = hval.replace("localhost", WAFBypass.get_hex_ip("127.0.0.1"))
+                
+                request_headers = {hkey: hval}
+                if config.waf_bypass:
+                    request_headers = WAFBypass.manipulate_headers(request_headers)
 
                 try:
                     r = session.get(
-                        f"{target}{endpoint}", headers=payload,
+                        f"{target}{endpoint}", headers=request_headers,
                         timeout=config.timeout, allow_redirects=False,
                     )
                     log_trace(f"[{r.status_code}] {endpoint} | {hkey}: {hval}")
