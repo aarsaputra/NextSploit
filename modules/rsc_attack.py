@@ -94,7 +94,7 @@ def scan(config: ScanConfig) -> ModuleResult:
     session = config.create_session()
     target = config.target.rstrip("/")
 
-    os.makedirs("reports", exist_ok=True)
+    os.makedirs(config.output_dir, exist_ok=True)
 
     # ════════════════════════════════════════════════════════════════════
     # Phase 1: RSC Endpoint Discovery
@@ -117,13 +117,13 @@ def scan(config: ScanConfig) -> ModuleResult:
                     # Save interesting files
                     if path.endswith(('.js', '.json', '.txt', '.xml')):
                         fname = path.split('/')[-1]
-                        save_path = f"reports/rsc_{fname}"
+                        save_path = os.path.join(config.output_dir, f"rsc_{fname}")
                         try:
                             with open(save_path, "w", errors="ignore") as f:
                                 f.write(r.text)
                             log_debug(f"Saved to {save_path}")
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            log_trace(f"Failed to save RSC response {save_path}: {e}")
 
             except requests.RequestException as e:
                 log_trace(f"Error {path}: {e}")
@@ -194,6 +194,11 @@ def scan(config: ScanConfig) -> ModuleResult:
                             "size_diff": f"{size_diff} bytes",
                             "preview": r.text[:500],
                         }
+                        filename = f"rsc_action_{ep.replace('/', '_')}_{action_id}.txt"
+                        saved_path = config.save_response(filename, r)
+                        if saved_path:
+                            evidence["saved_to"] = saved_path
+
                         print_finding(MODULE_NAME, detail, evidence)
                         result.add_finding(Finding(
                             cve=MODULE_NAME, severity="MEDIUM",
@@ -254,6 +259,11 @@ def scan(config: ScanConfig) -> ModuleResult:
                         "response_size": f"{len(r.text)} bytes",
                         "preview": r.text[:500],
                     }
+                    filename = f"rsc_multipart_{ep.replace('/', '_')}.txt"
+                    saved_path = config.save_response(filename, r)
+                    if saved_path:
+                        evidence["saved_to"] = saved_path
+
                     print_finding(MODULE_NAME, detail, evidence)
 
                     result.add_finding(Finding(
@@ -263,8 +273,8 @@ def scan(config: ScanConfig) -> ModuleResult:
                         evidence=evidence,
                     ))
 
-            except requests.RequestException:
-                pass
+            except requests.RequestException as e:
+                log_trace(f"Multipart Server Action probe failed {ep}: {e}")
 
     # ════════════════════════════════════════════════════════════════════
     # Phase 4: RSC Data Extraction via Build ID
@@ -330,13 +340,10 @@ def scan(config: ScanConfig) -> ModuleResult:
 
                         # Save
                         safe_name = rsc_path.replace("/", "_").lstrip("_")
-                        save_path = f"reports/rsc_data_{safe_name}"
-                        try:
-                            with open(save_path, "w", errors="ignore") as f:
-                                f.write(r_rsc.text)
-                            evidence["saved_to"] = save_path
-                        except Exception:
-                            pass
+                        filename = f"rsc_data_{safe_name}.txt"
+                        saved_path = config.save_response(filename, r_rsc)
+                        if saved_path:
+                            evidence["saved_to"] = saved_path
 
                         print_finding(MODULE_NAME, detail, evidence)
                         result.add_finding(Finding(
@@ -346,8 +353,8 @@ def scan(config: ScanConfig) -> ModuleResult:
                             evidence=evidence,
                         ))
 
-                except requests.RequestException:
-                    pass
+                except requests.RequestException as e:
+                    log_trace(f"RSC data extraction probe failed {rsc_path}: {e}")
         else:
             log_warning("Could not extract Build ID — skipping RSC data extraction")
 
@@ -373,7 +380,8 @@ def scan(config: ScanConfig) -> ModuleResult:
             )
             pp_baselines[ep] = {"hash": _hash(r_b.text), "size": len(r_b.text)}
             log_debug(f"PP Baseline [{r_b.status_code}] {ep} — {len(r_b.text)} bytes")
-        except Exception:
+        except requests.RequestException as e:
+            log_trace(f"Prototype pollution baseline request failed {ep}: {e}")
             pp_baselines[ep] = {"hash": "", "size": 0}
 
     with create_progress() as progress:
@@ -427,6 +435,11 @@ def scan(config: ScanConfig) -> ModuleResult:
                             "confidence_score": f"{confidence:.2f}",
                             "preview": r.text[:300],
                         }
+                        filename = f"rsc_pp_{ep.replace('/', '_')}_{desc.replace(' ', '_')}.txt"
+                        saved_path = config.save_response(filename, r)
+                        if saved_path:
+                            evidence["saved_to"] = saved_path
+
                         print_finding(MODULE_NAME, detail, evidence)
                         result.add_finding(Finding(
                             cve=MODULE_NAME, severity="HIGH",
@@ -436,8 +449,8 @@ def scan(config: ScanConfig) -> ModuleResult:
                     else:
                         log_trace(f"PP ignored [{ep}|{desc}]: {fp_reason}")
 
-                except requests.RequestException:
-                    pass
+                except requests.RequestException as e:
+                    log_trace(f"Prototype pollution probe failed {ep}|{desc}: {e}")
 
     # ── Final status ─────────────────────────────────────────────────────
     if result.finding_count > 0:

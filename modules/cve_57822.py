@@ -77,7 +77,8 @@ IMDS_PATTERNS = [
 
 SCRIPT_TAG_RE = re.compile(r'<script[^>]*>.*?</script>', re.DOTALL | re.IGNORECASE)
 SENSITIVE_KEYWORDS_STRICT = ["secretAccessKey", "AccessKeyId", "ami-", "redis_version"]
-SENSITIVE_KEYWORDS_GENERAL = ["secret", "admin", "internal", "token", "key", "password", "private", "flag", "credential"]
+# Removed 'key' and 'flag' — too generic, cause false positives on airline/ecommerce sites
+SENSITIVE_KEYWORDS_GENERAL = ["secret", "admin", "internal", "token", "password", "private", "credential", "api_key", "apikey"]
 
 INTERNAL_HOSTS = ["127.0.0.1", "localhost", "169.254", "0.0.0.0", "10.", "172.16", "192.168", "100.100.100.200", "metadata.google"]
 
@@ -109,6 +110,47 @@ def _find_keywords(text: str) -> list:
     return found
 
 
+NORMAL_PAGE_INDICATORS = [
+    r'<html[^>]*lang=',
+    r'<meta[^>]+charset',
+    r'<meta[^>]+name="description"',
+    r'<link[^>]+rel="canonical"',
+    r'<!DOCTYPE html>',
+]
+
+def _is_normal_html_page(text: str) -> bool:
+    """Detect if response is a normal rendered HTML page (not SSRF data)."""
+    if len(text) < 200:
+        return False
+    matches = sum(1 for pat in NORMAL_PAGE_INDICATORS if re.search(pat, text[:2000], re.IGNORECASE))
+    return matches >= 3
+
+
+def _is_ssrf_confirmation(text: str, size_diff: int, keywords: list) -> tuple:
+    """
+    Determine if response truly indicates SSRF vs a normal page redirect.
+    Returns (is_confirmed, confidence, reason).
+    """
+    # IMDS match is always high confidence
+    imds_hit, imds_pat = _is_imds_response(text)
+    if imds_hit:
+        return True, 1.0, f"IMDS pattern: {imds_pat}"
+
+    # If response is a normal HTML page, it's likely just a fallback/404 - false positive
+    if _is_normal_html_page(text):
+        return False, 0.0, "Response is a normal HTML page (likely 404 fallback)"
+
+    # Non-HTML response with significant size diff + keywords
+    if keywords and size_diff > 500 and not _is_normal_html_page(text):
+        return True, 0.75, f"Non-HTML response with keywords: {', '.join(keywords[:3])}"
+
+    # Large diff but no keywords and no HTML — could be binary/data
+    if size_diff > 2000 and not text.strip().startswith('<'):
+        return True, 0.6, f"Non-HTML response (size diff: {size_diff})"
+
+    return False, 0.0, "No confirmation signal"
+
+
 def _is_waf_block(session: requests.Session, target: str, endpoint: str, hkey: str, hval: str, config: ScanConfig) -> bool:
     """Send a dummy payload to check if the behavior is caused by WAF/Cloudflare rules."""
     dummy_headers = {hkey: "/invalid_waf_test_123_xyz"}
@@ -137,7 +179,7 @@ def scan(config: ScanConfig) -> ModuleResult:
     print_module_header(CVE_ID, CVE_INFO["title"], CVE_INFO["severity"])
     session = config.create_session()
     target = config.target.rstrip("/")
-    os.makedirs("reports", exist_ok=True)
+    os.makedirs(config.output_dir, exist_ok=True)
 
     # ── Phase 1: Baseline ────────────────────────────────────────────────
     log_info("[Phase 1] Collecting baseline responses per endpoint...")
@@ -223,8 +265,8 @@ def scan(config: ScanConfig) -> ModuleResult:
                                     evidence["preview"] = r2.text[:500]
                                 else:
                                     evidence["preview"] = r2.text[:300]
-                            except Exception:
-                                pass
+                            except Exception as e:
+                                log_trace(f"Failed to follow redirect {loc}: {e}")
                             print_finding(CVE_ID, detail, evidence)
                             result.add_finding(Finding(
                                 cve=CVE_ID, severity=sev,
@@ -243,33 +285,32 @@ def scan(config: ScanConfig) -> ModuleResult:
 
                         if resp_hash == baseline.get("hash", ""):
                             log_trace(f"Identical to baseline: {endpoint}|{hkey}")
-                            continue  # No diff → not interesting
-                            
-                        # Ignore diffs that are within normal dynamic variance + margin
+                            continue
+
                         if size_diff <= (base_variance + 100):
                             continue
 
-                        imds_hit, imds_pat = _is_imds_response(r.text)
-                        
                         raw_keywords = _find_keywords(r.text)
                         base_keywords = baseline.get("keywords", [])
                         keywords = [kw for kw in raw_keywords if kw not in base_keywords]
 
+                        confirmed, confidence, reason = _is_ssrf_confirmation(r.text, size_diff, keywords)
+                        if not confirmed:
+                            log_trace(f"Skipped (FP filtered): {endpoint}|{hkey} — {reason}")
+                            continue
+
+                        imds_hit, imds_pat = _is_imds_response(r.text)
                         if imds_hit:
                             detail = f"IMDS data in response via {hkey} on {endpoint} (pattern: {imds_pat})"
                             log_critical(detail)
                             sev = "CRITICAL"
-                        elif keywords and size_diff > max(200, base_variance * 2):
+                        else:
                             detail = (
-                                f"Response differs from baseline via {hkey} on {endpoint} "
-                                f"(size diff: {size_diff}, keywords: {', '.join(keywords[:3])})"
+                                f"Non-HTML SSRF response via {hkey} on {endpoint} "
+                                f"(size diff: {size_diff}, reason: {reason})"
                             )
                             log_warning(detail)
                             sev = "HIGH"
-                        else:
-                            if config.verbosity >= 2:
-                                log_debug(f"Low-confidence diff: {endpoint}|{hkey} (diff={size_diff})")
-                            continue
 
                         evidence = {
                             "endpoint": endpoint,
@@ -278,18 +319,17 @@ def scan(config: ScanConfig) -> ModuleResult:
                             "response_size": f"{len(r.text)} bytes",
                             "baseline_size": f"{base_size} bytes",
                             "size_diff": f"{size_diff} bytes",
+                            "confirmation_reason": reason,
+                            "confidence": confidence,
                             "preview": r.text[:500],
                         }
                         if imds_hit:
                             evidence["imds_pattern"] = imds_pat
 
-                        fname = f"reports/ssrf_{endpoint.replace('/', '_')}_{hkey}.html"
-                        try:
-                            with open(fname, "w", errors="ignore") as f:
-                                f.write(r.text)
-                            evidence["saved_to"] = fname
-                        except Exception:
-                            pass
+                        filename = f"ssrf_{endpoint.replace('/', '_')}_{hkey}.txt"
+                        saved_path = config.save_response(filename, r)
+                        if saved_path:
+                            evidence["saved_to"] = saved_path
 
                         print_finding(CVE_ID, detail, evidence)
                         result.add_finding(Finding(
@@ -297,6 +337,7 @@ def scan(config: ScanConfig) -> ModuleResult:
                             title="SSRF-Induced Response Difference",
                             status="VULNERABLE", detail=detail, evidence=evidence,
                         ))
+
 
                     # Check 3: General Anomaly & WAF Validation
                     elif r.status_code != baseline.get("status", -1):
@@ -344,8 +385,8 @@ def scan(config: ScanConfig) -> ModuleResult:
                         cve=CVE_ID, severity="HIGH", title="Parameter-based SSRF Endpoint",
                         status="VULNERABLE", detail=detail, evidence=evidence,
                     ))
-            except requests.RequestException:
-                pass
+            except requests.RequestException as e:
+                log_trace(f"Network error probing {param_ep}: {e}")
 
     # ── Phase 4: Internal Network Scan ───────────────────────────────────
     if config.verbosity >= 1:
@@ -380,8 +421,8 @@ def _scan_internal_network(config, session, target, result):
                             status="VULNERABLE", detail=f"Redirect to {ip}:{port}",
                             evidence={"ip": ip, "port": port, "redirect": loc},
                         ))
-            except Exception:
-                pass
+            except Exception as e:
+                log_trace(f"Error probing {ip}:{port}: {e}")
 
     log_info("Scanning internal network ranges (limited)...")
 
@@ -393,8 +434,8 @@ def _scan_internal_network(config, session, target, result):
                 loc = r.headers.get("Location", "")
                 if ip in loc:
                     return (ip, port, loc)
-        except Exception:
-            pass
+        except Exception as e:
+            log_trace(f"Internal network probe failed {ip}:{port}: {e}")
         return None
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=config.threads) as ex:

@@ -268,6 +268,22 @@ class ScanConfig:
             return {"http": self.proxy, "https": self.proxy}
         return None
 
+    def save_response(self, filename: str, response: requests.Response) -> str:
+        """Save full HTTP response (status, headers, and body) to output_dir."""
+        import os
+        os.makedirs(self.output_dir, exist_ok=True)
+        filepath = os.path.join(self.output_dir, filename)
+        try:
+            with open(filepath, "w", encoding="utf-8", errors="ignore") as f:
+                f.write(f"HTTP/1.1 {response.status_code} {response.reason}\n")
+                for k, v in response.headers.items():
+                    f.write(f"{k}: {v}\n")
+                f.write("\n")
+                f.write(response.text)
+            return filepath
+        except Exception:
+            return ""
+
     def create_session(self) -> requests.Session:
         """Create a configured requests.Session."""
         session = requests.Session()

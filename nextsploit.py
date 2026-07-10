@@ -37,7 +37,7 @@ from core.output import (
     log_warning, log_error, log_critical, print_section,
     print_summary_table, console,
 )
-from core.reporter import ScanReport, ModuleResult
+from core.reporter import ScanReport, ModuleResult, get_domain
 from modules import MODULE_REGISTRY
 from modules.fingerprint import fingerprint
 from core.version import APP_NAME, APP_VERSION, APP_AUTHOR
@@ -424,22 +424,25 @@ def main() -> None:
         # Build clean config specifically for this target
         config = build_scan_config(target_url, args, file_cfg)
         
+        domain = get_domain(target_url)
+        config.output_dir = os.path.join("reports", domain)
+        os.makedirs(config.output_dir, exist_ok=True)
+        
         # Run execution pipeline
         report = scan_target(target_url, config, run_all, cve_args, run_fingerprint)
 
         # Output handling
         output_path = config.output_file
-        safe_target = target_url.replace("https://", "").replace("http://", "").replace("/", "_")
         
         if not output_path:
-            # Auto-generate a report in the reports/ directory
+            # Auto-generate a report in the target directory
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            output_path = f"reports/scan_{safe_target}_{timestamp}.json"
+            output_path = f"scan_{domain}_{timestamp}.json"
         elif len(targets) > 1:
             # Auto-append target name to prevent overwriting in multi-target scans
             ext = os.path.splitext(output_path)[1] or ".json"
             base = os.path.splitext(output_path)[0]
-            output_path = f"{base}_{safe_target}{ext}"
+            output_path = f"{base}_{domain}{ext}"
             
         report.save(output_path)
 

@@ -210,16 +210,11 @@ def scan(config: ScanConfig) -> ModuleResult:
                             print_finding(CVE_ID, detail, evidence)
 
                             # Save response
-                            try:
-                                fname = f"reports/bypass_{path.replace('/', '_')}.html"
-                                import os
-                                os.makedirs("reports", exist_ok=True)
-                                with open(fname, "w", errors="ignore") as f:
-                                    f.write(r_bypass.text)
-                                log_success(f"Response saved to {fname}")
-                                evidence["saved_to"] = fname
-                            except Exception:
-                                pass
+                            filename = f"bypass_{path.replace('/', '_')}.txt"
+                            saved_path = config.save_response(filename, r_bypass)
+                            if saved_path:
+                                log_success(f"Response saved to {saved_path}")
+                                evidence["saved_to"] = saved_path
                         else:
                             severity = "HIGH"
                             detail = (

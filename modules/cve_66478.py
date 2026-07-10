@@ -77,18 +77,22 @@ FLIGHT_ENDPOINTS = [
     "/cryptopedia",
 ]
 
-# Error patterns that indicate server-side deserialization is happening
+# Error patterns that indicate server-side RSC deserialization is happening
+# NOTE: "Flight" alone is too generic — it appears on any airline/travel website.
+# Only specific RSC protocol error strings or stack traces should trigger detection.
 DESERIALIZATION_INDICATORS = [
     r"requireModule",
     r"decodeReplyFromBusboy",
-    r"React Server",
-    r"Flight",
+    r"React Server Component",          # Specific — not just "React Server"
+    r"react-server-dom-webpack",        # RSC webpack module path
     r"__proto__.*polluted",
     r"prototype.*modified",
     r"Cannot read prop.*of undefined",
     r"child_process",
     r"ReferenceError.*require",
     r"Module.*not found.*__proto__",
+    r"text/x-component",               # RSC content type in error body
+    r"encodeReply\|encodeAction",       # RSC internal function names
 ]
 
 # Stack trace patterns that reveal internal paths
@@ -99,6 +103,25 @@ STACK_TRACE_PATTERNS = [
     r"/app/\.",
     r"node_modules/next/dist",
 ]
+
+RSC_RESPONSE_INDICATORS = [
+    r'^[0-9]+:',             # RSC line protocol: "0:$undefined" or "1:I[...]"
+    r'^\$',                  # RSC reference marker
+    r'text/x-component',     # RSC content type
+]
+
+
+def _is_rsc_flight_response(text: str, content_type: str = "") -> bool:
+    """Check if response is actually RSC Flight Protocol data, not normal HTML."""
+    if "text/x-component" in content_type.lower():
+        return True
+    if text.strip().startswith(("0:", "1:", "2:", "$")):
+        return True
+    # Normal HTML pages are NOT RSC responses
+    if text.strip().startswith("<!DOCTYPE") or text.strip().startswith("<html"):
+        return False
+    return False
+
 
 BOUNDARY = "----WebKitFormBoundaryCVE66478"
 
@@ -144,7 +167,7 @@ def scan(config: ScanConfig) -> ModuleResult:
 
     session = config.create_session()
     target = config.target.rstrip("/")
-    os.makedirs("reports", exist_ok=True)
+    os.makedirs(config.output_dir, exist_ok=True)
 
     # Collect action IDs from fingerprint
     action_ids = list(config.discovered_action_ids) if config.discovered_action_ids else []
@@ -230,13 +253,10 @@ def scan(config: ScanConfig) -> ModuleResult:
                                     "proto pollution can hijack requireModule → RCE"
                                 ),
                             }
-                            fname = f"reports/cve66478_{ep.replace('/', '_')}_{desc}.html"
-                            try:
-                                with open(fname, "w", errors="ignore") as f:
-                                    f.write(r.text)
-                                evidence["saved_to"] = fname
-                            except Exception:
-                                pass
+                            filename = f"cve66478_{ep.replace('/', '_')}_{desc}.txt"
+                            saved_path = config.save_response(filename, r)
+                            if saved_path:
+                                evidence["saved_to"] = saved_path
                             print_finding(CVE_ID, detail, evidence)
                             result.add_finding(Finding(
                                 cve=CVE_ID, severity=risk,
@@ -278,8 +298,8 @@ def scan(config: ScanConfig) -> ModuleResult:
 
                         break  # Don't spam all action IDs if first one gets a response
 
-                    except requests.RequestException:
-                        pass
+                    except requests.RequestException as e:
+                        log_trace(f"RSC flight payload probe failed {ep}|{desc}: {e}")
 
     # ── Phase 3: Multipart Path (decodeReplyFromBusboy) ──────────────────
     log_info("[Phase 3] Testing via multipart (decodeReplyFromBusboy path)...")
@@ -339,8 +359,8 @@ def scan(config: ScanConfig) -> ModuleResult:
                             status="VULNERABLE", detail=detail, evidence=evidence,
                         ))
 
-                except requests.RequestException:
-                    pass
+                except requests.RequestException as e:
+                    log_trace(f"Multipart Flight payload probe failed {ep}|{desc}: {e}")
 
     # ── Phase 4: Error Response Analysis ─────────────────────────────────
     log_info("[Phase 4] Error response analysis for internal path leakage...")
@@ -389,8 +409,8 @@ def scan(config: ScanConfig) -> ModuleResult:
                         status="VULNERABLE", detail=detail, evidence=evidence,
                     ))
 
-            except requests.RequestException:
-                pass
+            except requests.RequestException as e:
+                log_trace(f"Malformed Flight request failed {ep}: {e}")
 
     # ── Final ─────────────────────────────────────────────────────────────
     if result.finding_count > 0:

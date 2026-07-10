@@ -105,8 +105,8 @@ def _check_server_action_responds(session, url: str, action_ids: list, timeout: 
             )
             if r.status_code == 200 and r.text:
                 active.append((aid, r))
-        except Exception:
-            pass
+        except requests.RequestException as e:
+            log_trace(f"Server Action active probe failed {aid}: {e}")
     return active
 
 
@@ -125,7 +125,7 @@ def scan(config: ScanConfig) -> ModuleResult:
     print_module_header(CVE_ID, CVE_INFO["title"], CVE_INFO["severity"])
     session = config.create_session()
     target = config.target.rstrip("/")
-    os.makedirs("reports", exist_ok=True)
+    os.makedirs(config.output_dir, exist_ok=True)
 
     # Collect known action IDs from fingerprint
     known_action_ids = list(config.discovered_action_ids) if config.discovered_action_ids else []
@@ -167,8 +167,8 @@ def scan(config: ScanConfig) -> ModuleResult:
                         log_debug(f"Server Action active on {ep} [{len(r.text)} bytes]")
                         active_sa_endpoints.append((ep, r))
                         break
-                except Exception:
-                    pass
+                except requests.RequestException as e:
+                    log_trace(f"Active Server Action probe failed {ep}: {e}")
 
     if active_sa_endpoints:
         log_success(f"Found {len(active_sa_endpoints)} active Server Action endpoints")
@@ -356,13 +356,10 @@ def scan(config: ScanConfig) -> ModuleResult:
                             "response_preview": r.text[:500],
                             "status_code": r.status_code,
                         }
-                        fname = f"reports/cve34351_{ep.replace('/', '_')}_confirmed.html"
-                        try:
-                            with open(fname, "w", errors="ignore") as f:
-                                f.write(r.text)
-                            evidence["saved_to"] = fname
-                        except Exception:
-                            pass
+                        filename = f"cve34351_{ep.replace('/', '_')}_confirmed.txt"
+                        saved_path = config.save_response(filename, r)
+                        if saved_path:
+                            evidence["saved_to"] = saved_path
                         print_finding(CVE_ID, detail, evidence)
                         result.add_finding(Finding(
                             cve=CVE_ID, severity="CRITICAL",
@@ -370,8 +367,8 @@ def scan(config: ScanConfig) -> ModuleResult:
                             status="VULNERABLE", detail=detail, evidence=evidence,
                         ))
 
-            except requests.RequestException:
-                pass
+            except requests.RequestException as e:
+                log_trace(f"Server Action SSRF probe failed {ep}: {e}")
 
     # ── Final ─────────────────────────────────────────────────────────────
     if result.finding_count > 0:

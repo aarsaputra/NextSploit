@@ -69,6 +69,15 @@ class ModuleResult:
         }
 
 
+def get_domain(url: str) -> str:
+    from urllib.parse import urlparse
+    parsed = urlparse(url)
+    domain = parsed.netloc or parsed.path
+    domain = domain.split(":")[0]
+    domain = "".join(c for c in domain if c.isalnum() or c in ".-_")
+    return domain or "unknown"
+
+
 # ─── Scan Report ─────────────────────────────────────────────────────────────
 
 class ScanReport:
@@ -128,7 +137,13 @@ class ScanReport:
 
     def save(self, filepath: str):
         """Auto-detect format from extension and save."""
-        os.makedirs(os.path.dirname(filepath) if os.path.dirname(filepath) else ".", exist_ok=True)
+        # Ensure target domain directory exists
+        domain = get_domain(self.target)
+        target_dir = os.path.join("reports", domain)
+        os.makedirs(target_dir, exist_ok=True)
+
+        filename = os.path.basename(filepath)
+        filepath = os.path.join(target_dir, filename)
 
         ext = os.path.splitext(filepath)[1].lower()
         if ext == ".json":

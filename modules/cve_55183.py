@@ -85,8 +85,8 @@ def scan(config: ScanConfig) -> ModuleResult:
     session = config.create_session()
     target = config.target.rstrip("/")
 
-    os.makedirs("reports", exist_ok=True)
-    os.makedirs("reports/chunks", exist_ok=True)
+    os.makedirs(config.output_dir, exist_ok=True)
+    os.makedirs(os.path.join(config.output_dir, "chunks"), exist_ok=True)
 
     # ════════════════════════════════════════════════════════════════════
     # Phase 1: Extract JS/CSS chunk references
@@ -134,10 +134,10 @@ def scan(config: ScanConfig) -> ModuleResult:
 
                 # Save chunk
                 try:
-                    with open(f"reports/chunks/{fname}", "w", errors="ignore") as f:
+                    with open(os.path.join(config.output_dir, "chunks", fname), "w", errors="ignore") as f:
                         f.write(content)
-                except Exception:
-                    pass
+                except Exception as e:
+                    log_trace(f"Failed to save chunk {fname}: {e}")
 
                 # Extract endpoints
                 endpoints = re.findall(r'["\'](/[a-zA-Z0-9_\-/]+)["\']', content)
@@ -175,16 +175,18 @@ def scan(config: ScanConfig) -> ModuleResult:
 
     # Save discovered endpoints
     if all_endpoints:
-        with open("reports/endpoints_found.txt", "w") as f:
+        ep_file = os.path.join(config.output_dir, "endpoints_found.txt")
+        with open(ep_file, "w") as f:
             for ep in sorted(all_endpoints):
                 f.write(f"{ep}\n")
-        log_success(f"Saved {len(all_endpoints)} endpoints to reports/endpoints_found.txt")
+        log_success(f"Saved {len(all_endpoints)} endpoints to {ep_file}")
 
     if all_apis:
-        with open("reports/api_endpoints_found.txt", "w") as f:
+        api_file = os.path.join(config.output_dir, "api_endpoints_found.txt")
+        with open(api_file, "w") as f:
             for ep in sorted(all_apis):
                 f.write(f"{ep}\n")
-        log_success(f"Saved {len(all_apis)} API endpoints to reports/api_endpoints_found.txt")
+        log_success(f"Saved {len(all_apis)} API endpoints to {api_file}")
 
     # ════════════════════════════════════════════════════════════════════
     # Phase 3: Probe internal Next.js paths
@@ -223,13 +225,12 @@ def scan(config: ScanConfig) -> ModuleResult:
 
                         # Save
                         safe_fname = path.replace("/", "_").lstrip("_")
-                        save_path = f"reports/internal_{safe_fname}"
-                        try:
-                            with open(save_path, "w", errors="ignore") as f:
-                                f.write(r_probe.text)
-                            evidence["saved_to"] = save_path
-                        except Exception:
-                            pass
+                        filename = f"internal_{safe_fname}"
+                        if not filename.endswith((".txt", ".json", ".js", ".mjs", ".env", ".npmrc")):
+                            filename += ".txt"
+                        saved_path = config.save_response(filename, r_probe)
+                        if saved_path:
+                            evidence["saved_to"] = saved_path
 
                         print_finding(CVE_ID, detail, evidence)
                         result.add_finding(Finding(
@@ -241,8 +242,8 @@ def scan(config: ScanConfig) -> ModuleResult:
                     else:
                         log_debug(f"[200] {path} — {len(r_probe.text)} bytes (may be custom 404)")
 
-            except requests.RequestException:
-                pass
+            except requests.RequestException as e:
+                log_trace(f"Internal path probe failed {path}: {e}")
 
     # ════════════════════════════════════════════════════════════════════
     # Phase 4: Probe discovered API endpoints
@@ -283,8 +284,8 @@ def scan(config: ScanConfig) -> ModuleResult:
                                 },
                             ))
 
-                except requests.RequestException:
-                    pass
+                except requests.RequestException as e:
+                    log_trace(f"API endpoint probe failed {api_path}: {e}")
 
     # ── Final status ─────────────────────────────────────────────────────
     log_info(f"Total endpoints discovered: [bold]{len(all_endpoints)}[/bold]")

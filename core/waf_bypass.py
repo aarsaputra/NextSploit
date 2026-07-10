@@ -25,8 +25,8 @@ class WAFBypass:
             parts = [int(p) for p in ip.split(".")]
             if len(parts) == 4:
                 return f"0x{parts[0]:02x}{parts[1]:02x}{parts[2]:02x}{parts[3]:02x}"
-        except Exception:
-            pass
+        except (ValueError, TypeError):
+            return ip
         return ip
         
     @staticmethod
@@ -36,8 +36,8 @@ class WAFBypass:
             parts = [int(p) for p in ip.split(".")]
             if len(parts) == 4:
                 return f"0{parts[0]:03o}.0{parts[1]:03o}.0{parts[2]:03o}.0{parts[3]:03o}"
-        except Exception:
-            pass
+        except (ValueError, TypeError):
+            return ip
         return ip
 
     @staticmethod

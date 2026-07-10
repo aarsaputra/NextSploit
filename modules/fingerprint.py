@@ -184,8 +184,8 @@ def fingerprint(config: ScanConfig) -> dict:
                         )
             else:
                 log_debug(f"[{r2.status_code}] {path}")
-        except requests.RequestException:
-            pass
+        except requests.RequestException as e:
+            log_trace(f"Network error probing indicator path {path}: {e}")
 
     # ─── Step 6: Version detection from JS chunks ────────────────────────
     if not result["version"]:
@@ -211,8 +211,8 @@ def fingerprint(config: ScanConfig) -> dict:
                             break
                 if result["version"]:
                     break
-            except requests.RequestException:
-                pass
+            except requests.RequestException as e:
+                log_trace(f"Network error fetching chunk {chunk_path}: {e}")
 
     # ─── Step 7: Server Action ID Discovery ──────────────────────────────
     log_info("Scanning JS bundles for Server Action IDs...")

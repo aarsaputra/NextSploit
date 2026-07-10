@@ -10,7 +10,8 @@ This framework builds upon the original concept of **[AnonKryptiQuz/NextSploit](
 ## 🚀 **Features**
 
 - **🔍 Automated Next.js Version & Build ID Detection**: Passively and active fingerprinters crawl Next.js assets to fetch actual Build IDs and active Server Action IDs.
-- **🛡️ Multi-CVE Vulnerability Assessment**:
+- **�️ Improved Scanner Stability**: Enhanced exception handling and trace logging across production scan modules for more reliable diagnostics.
+- **�🛡️ Multi-CVE Vulnerability Assessment**:
   - **CVE-2025-29927 (Middleware Auth Bypass)**: Detects and visualizes middleware authentication bypasses.
   - **CVE-2025-66478 (React2Shell RCE)**: Assesses server-side React Server Components (RSC) Flight Protocol deserialization bugs.
   - **CVE-2024-34351 (Server Action SSRF)**: Validates outbound redirections via Host Header manipulation.

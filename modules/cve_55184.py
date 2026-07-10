@@ -243,8 +243,8 @@ def scan(config: ScanConfig) -> ModuleResult:
                     evidence={"header": header_name},
                 ))
 
-            except requests.RequestException:
-                pass
+            except requests.RequestException as e:
+                log_trace(f"Heavy header request failed {header_name}: {e}")
 
     # ── Final status ─────────────────────────────────────────────────────
     if result.finding_count > 0:
