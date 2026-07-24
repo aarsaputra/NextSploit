@@ -79,5 +79,29 @@ MODULE_REGISTRY = {
         "module": "modules.cve_23870",
         "function": "scan",
     },
+    "44575": {
+        "name": "CVE-2026-44575",
+        "title": "Middleware Bypass via Segment-Prefetch (.rsc)",
+        "module": "modules.cve_44575",
+        "function": "scan",
+    },
+    "23864": {
+        "name": "CVE-2026-23864",
+        "title": "DoS RSC Memory Exhaustion (FormData $K)",
+        "module": "modules.cve_23864",
+        "function": "scan",
+    },
+    "mg66": {
+        "name": "GHSA-mg66-mrh9-m8jx",
+        "title": "DoS PPR/Cache Components Deadlock",
+        "module": "modules.ghsa_mg66",
+        "function": "scan",
+    },
+    "45109": {
+        "name": "CVE-2026-45109",
+        "title": "Middleware Bypass via Turbopack (Incomplete Fix)",
+        "module": "modules.cve_45109",
+        "function": "scan",
+    },
 }
 

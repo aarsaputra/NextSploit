@@ -209,6 +209,74 @@ CVE_DATABASE = {
             "https://github.com/vercel/next.js/security/advisories",
         ],
     },
+    "CVE-2026-44575": {
+        "id": "CVE-2026-44575",
+        "short": "44575",
+        "title": "Middleware Bypass via Segment-Prefetch Routes",
+        "type": "Auth Bypass",
+        "severity": "HIGH",
+        "fix_version": "15.5.16",
+        "description": (
+            "Next.js App Router generates route variants (.rsc, .prefetch.rsc) for "
+            "segment prefetching whose middleware path-matchers differ from the canonical "
+            "route. Middleware is NOT triggered for these variants, granting unauthenticated "
+            "access to protected pages in Next.js 15.2.0–15.5.15."
+        ),
+        "references": [
+            "https://github.com/vercel/next.js/security/advisories",
+        ],
+    },
+    "CVE-2026-23864": {
+        "id": "CVE-2026-23864",
+        "short": "23864",
+        "title": "DoS via RSC Memory Exhaustion (FormData $K Token Amplification)",
+        "type": "DoS",
+        "severity": "HIGH",
+        "fix_version": "15.5.10",
+        "description": (
+            "The React Flight protocol decoder in Next.js 15.5.0–15.5.9 allocates memory "
+            "for every '$K<id>:FormData' token in a multipart FormData body posted to a "
+            "Server Action endpoint. A crafted request with thousands of such tokens causes "
+            "unbounded memory growth (OOM), crashing the Node.js process. CVSS 7.5."
+        ),
+        "references": [
+            "https://github.com/vercel/next.js/security/advisories",
+        ],
+    },
+    "GHSA-mg66-mrh9-m8jx": {
+        "id": "GHSA-mg66-mrh9-m8jx",
+        "short": "mg66",
+        "title": "DoS via PPR/Cache Components Connection Deadlock",
+        "type": "DoS",
+        "severity": "HIGH",
+        "fix_version": "15.5.16",
+        "description": (
+            "When Partial Pre-Rendering (PPR) or cacheComponents is enabled, a POST request "
+            "carrying the 'Next-Resume: 1' header deadlocks the internal connection pool. "
+            "Concurrent requests pile up until the process exhausts file handles, causing a "
+            "Denial of Service. Affects Next.js < 15.5.16 with PPR enabled."
+        ),
+        "references": [
+            "https://github.com/advisories/GHSA-mg66-mrh9-m8jx",
+        ],
+    },
+    "CVE-2026-45109": {
+        "id": "CVE-2026-45109",
+        "short": "45109",
+        "title": "Middleware Bypass via Turbopack (Incomplete Fix Follow-up)",
+        "type": "Auth Bypass",
+        "severity": "HIGH",
+        "fix_version": "15.5.18",
+        "description": (
+            "CVE-2026-44575 was only partially fixed in 15.5.16. The Turbopack bundler "
+            "code path still allows .rsc and .prefetch.rsc route variants to bypass "
+            "middleware in Next.js 15.5.16–15.5.17 when Turbopack is enabled, granting "
+            "unauthenticated access to protected routes."
+        ),
+        "references": [
+            "https://github.com/vercel/next.js/security/advisories",
+        ],
+    },
 }
 
 

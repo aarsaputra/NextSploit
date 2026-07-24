@@ -1,4 +1,4 @@
-# 🔍 NextSploit: Next.js CVE-2025-29927 & Multi-CVE Security Auditing Framework ⚠️
+# 🔍 NextSploit: Next.js Multi-CVE Security Auditing Framework ⚠️
 
 **NextSploit** is a modular, high-accuracy command-line penetration testing automation framework specifically designed to scan, detect, and analyze critical vulnerabilities in **Next.js** web applications. 
 
@@ -21,6 +21,10 @@ This framework builds upon the original concept of **[AnonKryptiQuz/NextSploit](
   - **CVE-2024-34350 (HTTP Request Smuggling)**: Analyzes targets for HTTP Smuggling and Response Queue Poisoning.
   - **CVE-2025-59471 (Image Optimizer DoS)**: Checks for unauthenticated dynamic OOM Denial of Service API flags.
   - **CVE-2026-23870 (RSC Deserialization DoS)**: Assesses Server Function routes against DoS deserialization exploits.
+  - **CVE-2026-44575 (Middleware Bypass via Segment-Prefetch)**: Detects middleware bypass via `.rsc` / `.prefetch.rsc` route variants. Affects Next.js 15.2.0–15.5.15. Fix: 15.5.16.
+  - **CVE-2026-23864 (RSC Memory Exhaustion DoS)**: Probes for OOM crash via FormData `$K` token amplification in React Flight protocol. CVSS 7.5. Affects 15.5.0–15.5.9. Fix: 15.5.10.
+  - **GHSA-mg66-mrh9-m8jx (PPR/Cache Components Deadlock DoS)**: Detects connection-pool deadlock triggered by `Next-Resume: 1` header on PPR-enabled apps. Fix: 15.5.16.
+  - **CVE-2026-45109 (Middleware Bypass via Turbopack)**: Incomplete fix follow-up to CVE-2026-44575. Affects Turbopack builds on 15.5.16–15.5.17. Fix: 15.5.18.
 - **⚖️ FP Reduction & Confidence Scoring**: Introduces baseline hashing, filtering out static script differences, and rates findings on a `0.0` - `1.0` confidence scale.
 - **🌐 Automated Chrome Browser Chaining**: Integrates AnonKryptiQuz's Chrome Browser Exploit Engine to automatically launch a Selenium-controlled Chrome window with preconfigured bypass headers.
 - **📡 Multiformat Reporting & Self-Update**: Renders findings immediately, supports dynamic update checking using GitHub API, and self-updates using `--update`.
@@ -131,7 +135,11 @@ NextSploit/
     ├── cve_48068.py         # Dev Server Source Exposure Scanner
     ├── cve_34350.py         # HTTP Request Smuggling Check Scanner
     ├── cve_59471.py         # Image Optimizer DoS Check Scanner
-    └── cve_23870.py         # DoS via RSC Deserialization Scanner
+    ├── cve_23870.py         # DoS via RSC Deserialization Scanner
+    ├── cve_44575.py         # Middleware Bypass via Segment-Prefetch (.rsc) [Next.js 15.5.9]
+    ├── cve_23864.py         # RSC Memory Exhaustion DoS via FormData $K tokens [Next.js 15.5.9]
+    ├── ghsa_mg66.py         # PPR/Cache Components Deadlock DoS [Next.js 15.5.9]
+    └── cve_45109.py         # Middleware Bypass via Turbopack (incomplete fix) [Next.js 15.5.9]
 
 ```
 
@@ -235,6 +243,26 @@ def scan(config: ScanConfig) -> ModuleResult:
         result.error = str(e)
         
     return result
+```
+
+---
+
+## 🧪 **CVE Coverage Matrix (Next.js 15.5.9)**
+
+Berikut status kerentanan untuk target yang menjalankan **Next.js 15.5.9**:
+
+| Module ID | CVE / ID | Severity | Fix Version | Status di 15.5.9 |
+|:---:|:---|:---:|:---:|:---:|
+| `59471` | CVE-2025-59471 | MEDIUM | 15.5.10 | ✅ Masih Rentan |
+| `23870` | CVE-2026-23870 | HIGH | 15.5.16 | ✅ Masih Rentan |
+| `44575` | CVE-2026-44575 | HIGH | 15.5.16 | ✅ Masih Rentan |
+| `23864` | CVE-2026-23864 | HIGH | 15.5.10 | ✅ Masih Rentan |
+| `mg66` | GHSA-mg66-mrh9-m8jx | HIGH | 15.5.16 | ✅ Masih Rentan |
+| `45109` | CVE-2026-45109 | HIGH | 15.5.18 | ✅ Masih Rentan |
+
+```bash
+# Scan semua CVE yang relevan untuk Next.js 15.5.9
+python nextsploit.py -t https://target.com --cve 59471,23870,44575,23864,mg66,45109 -v
 ```
 
 ---
