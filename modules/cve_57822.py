@@ -377,6 +377,10 @@ def scan(config: ScanConfig) -> ModuleResult:
                 r = session.get(url, timeout=config.timeout, allow_redirects=False)
                 log_trace(f"[{r.status_code}] {param_ep}")
                 if r.status_code == 200 and len(r.text) > 50:
+                    if _is_normal_html_page(r.text):
+                        log_trace(f"Skipped {param_ep}: returned a normal HTML page (likely 404/fallback).")
+                        continue
+                        
                     detail = f"SSRF param endpoint responds: {param_ep} (status 200, {len(r.text)} bytes)"
                     log_warning(detail)
                     evidence = {"endpoint": param_ep, "test_url": ssrf_test_url, "response_size": f"{len(r.text)} bytes"}

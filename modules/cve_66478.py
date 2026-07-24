@@ -120,7 +120,9 @@ def _is_rsc_flight_response(text: str, content_type: str = "") -> bool:
     # Normal HTML pages are NOT RSC responses
     if text.strip().startswith("<!DOCTYPE") or text.strip().startswith("<html"):
         return False
-    return False
+    # If it's a JSON error or raw stack trace, we can consider it potentially RSC related
+    # if it doesn't look like a standard HTML page.
+    return True
 
 
 BOUNDARY = "----WebKitFormBoundaryCVE66478"
@@ -231,8 +233,10 @@ def scan(config: ScanConfig) -> ModuleResult:
                         # Check 1: Deserialization indicators in response
                         deser_hits = _check_deserialization_indicators(r.text)
                         stack_hits = _check_stack_trace(r.text)
+                        is_rsc_resp = _is_rsc_flight_response(r.text, r.headers.get("Content-Type", ""))
 
-                        if deser_hits or stack_hits:
+                        # Only flag if we have hits AND it doesn't look like a false-positive normal HTML page
+                        if (deser_hits or stack_hits) and is_rsc_resp:
                             detail = (
                                 f"Deserialization indicator in Flight Protocol response "
                                 f"on {ep} with {desc} "
@@ -267,6 +271,7 @@ def scan(config: ScanConfig) -> ModuleResult:
                         # Check 2: Response differs from baseline (proto pollution observable effect)
                         elif (
                             r.status_code == 200
+                            and is_rsc_resp
                             and _hash(r.text) != baseline.get("hash", "")
                             and abs(len(r.text) - baseline.get("size", 0)) > 100
                         ):

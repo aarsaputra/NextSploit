@@ -74,28 +74,57 @@ CVE_DATABASE = {
     "CVE-2025-55183": {
         "id": "CVE-2025-55183",
         "short": "55183",
-        "title": "Source Code Exposure",
+        "title": "Source Code Exposure via RSC Server Functions",
         "type": "Information Disclosure",
-        "severity": "HIGH",
+        "severity": "MEDIUM",  # CVSS 5.3 per NVD — corrected from HIGH
         "fix_version": "14.2.35",
         "description": (
-            "Next.js exposes source code, API endpoints, and potential secrets "
-            "via client-side JS bundles and internal paths."
+            "RSC Server Functions do not override toString(), causing them to "
+            "return their full source code when stringified. A crafted HTTP "
+            "request can coerce a Server Function to leak API keys, business "
+            "logic, or secrets embedded in the source. CVSS 5.3 (Medium)."
         ),
-        "references": [],
+        "references": [
+            "https://github.com/vercel/next.js/security/advisories",
+        ],
     },
     "CVE-2025-55184": {
         "id": "CVE-2025-55184",
         "short": "55184",
-        "title": "Denial of Service",
+        "title": "Denial of Service via Infinite Promise Recursion (RSC)",
         "type": "DoS",
-        "severity": "MEDIUM",
+        "severity": "HIGH",  # CVSS 7.5 per NVD — corrected from MEDIUM
         "fix_version": "14.2.35",
         "description": (
-            "Next.js is vulnerable to denial of service via crafted requests "
-            "that cause excessive resource consumption."
+            "An attacker can send a malformed RSC request to an App Router endpoint "
+            "that triggers an infinite promise recursion loop, hanging the server "
+            "process and causing DoS. CVSS 7.5 (High). "
+            "WARNING: The initial patch for this CVE was INCOMPLETE — "
+            "see CVE-2025-67779 for the full fix (React 19.0.3/19.1.4/19.2.3)."
         ),
-        "references": [],
+        "references": [
+            "https://github.com/vercel/next.js/security/advisories",
+        ],
+    },
+    "CVE-2025-67779": {
+        "id": "CVE-2025-67779",
+        "short": "67779",
+        "title": "DoS Incomplete Fix — Infinite Promise Loop (RSC Follow-up)",
+        "type": "DoS",
+        "severity": "HIGH",  # CVSS 7.5
+        "fix_version": "15.3.0",  # Next.js bundling React 19.0.3+
+        "description": (
+            "CVE-2025-55184 was initially patched with an incomplete fix. "
+            "This follow-up CVE covers the remaining attack surface: unsafe "
+            "deserialization of RSC payloads in react-server-dom-* packages "
+            "(< 19.0.3 / 19.1.4 / 19.2.3) still triggers infinite promise "
+            "recursion. Applications using React 19.0.2, 19.1.3, or 19.2.2 "
+            "bundled with Next.js remain vulnerable. CVSS 7.5 (High)."
+        ),
+        "references": [
+            "https://github.com/facebook/react/security/advisories",
+            "https://github.com/vercel/next.js/security/advisories",
+        ],
     },
     "CVE-2025-66478": {
         "id": "CVE-2025-66478",

@@ -62,7 +62,8 @@ def scan(config: ScanConfig) -> ModuleResult:
         
         r = session.get(url, timeout=config.timeout)
         
-        # Next.js Image Optimizer returns 400 for bad parameters but confirming the route is active
+        # Additional warning: This module's detection may be incomplete without the follow‑up fix from CVE‑2025‑67779.
+        log_warning("Note: CVE-2025-67779 provides the complete fix for the infinite‑promise recursion issue addressed partially by CVE-2025-55184.")
         # Or 200 if the favicon exists and optimization works
         if r.status_code in [200, 400]:
             log_debug(f"Image Optimization endpoint is active (HTTP status: {r.status_code})")

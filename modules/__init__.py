@@ -1,6 +1,12 @@
 # NextSploit Scanner Modules
 
 MODULE_REGISTRY = {
+    "67779": {
+        "name": "CVE-2025-67779",
+        "title": "DoS Incomplete Fix — Infinite Promise Loop (RSC Follow-up)",
+        "module": "modules.cve_67779",
+        "function": "scan",
+    },
     "29927": {
         "name": "CVE-2025-29927",
         "title": "Middleware Auth Bypass",
