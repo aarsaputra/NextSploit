@@ -4,7 +4,7 @@ import time
 import requests
 import signal
 
-LAB_DIR = "/nextjs-vuln-lab"
+LAB_DIR = "./vuln-lab"
 NEXTSPLOIT_DIR = "/home/lota1337/python/NextSploit"
 
 def run_test_for_lab(folder_name):

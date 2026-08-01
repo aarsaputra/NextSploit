@@ -70,7 +70,9 @@ def fingerprint(config: ScanConfig) -> dict:
     # ─── Step 1: Fetch main page ─────────────────────────────────────────
     log_info("Fetching main page...")
     try:
+        config.throttle()
         r = session.get(target, timeout=config.timeout)
+        config.record_request(r.status_code)
         result["headers"] = dict(r.headers)
         log_debug(f"Status: {r.status_code} | Size: {len(r.text)} bytes")
     except requests.RequestException as e:
@@ -79,6 +81,18 @@ def fingerprint(config: ScanConfig) -> dict:
 
     page_text = r.text
 
+    # Extract all JS and CSS chunks from page source
+    js_chunk_paths = list(set(re.findall(r'(/_next/static/chunks/[^\s"\']+\.js)', page_text)))
+    css_chunk_paths = list(set(re.findall(r'(/_next/static/css/[^\s"\']+\.css)', page_text)))
+    config.discovered_js_chunks = js_chunk_paths
+    config.discovered_css_chunks = css_chunk_paths
+
+    # Simple router type deduction from page text
+    if "/_next/static/chunks/app/" in page_text:
+        config.detected_router_type = "app"
+    elif "/_next/static/chunks/pages/" in page_text:
+        config.detected_router_type = "pages"
+
     # ─── Step 2: Detect version from headers ─────────────────────────────
     log_info("Checking response headers...")
 
@@ -86,6 +100,12 @@ def fingerprint(config: ScanConfig) -> dict:
     if "next" in powered_by.lower():
         log_success(f"X-Powered-By: [bold]{powered_by}[/bold]")
         result["technologies"].append(f"X-Powered-By: {powered_by}")
+        # Try extracting version (e.g. Next.js 14.2.3)
+        ver_match = re.search(r'next\.js\s*v?(\d+\.\d+\.\d+)', powered_by, re.IGNORECASE)
+        if ver_match:
+            ver = ver_match.group(1)
+            config.report_version(ver, 0.8, "header")
+            result["version"] = ver
 
     server = r.headers.get("Server", "")
     if server:
@@ -128,6 +148,10 @@ def fingerprint(config: ScanConfig) -> dict:
         log_success(f"Build ID: [bold cyan]{build_id}[/bold cyan] [dim](from {build_id_source})[/dim]")
         # Share with config for cross-module use
         config.discovered_build_id = build_id
+        # Report buildid signal (but note: Build ID itself is not a version string,
+        # so we don't call config.report_version() with buildid yet, unless we map it.
+        # But wait, if buildid contains the version directly? No, usually it is a hash or string.
+        # However, some buildids are versions, but we should not blindly report them as version.)
     else:
         log_warning("Could not extract Build ID from page source")
 
@@ -146,6 +170,11 @@ def fingerprint(config: ScanConfig) -> dict:
                 result["build_id"] = nd_bid
                 config.discovered_build_id = nd_bid
                 log_success(f"Build ID (__NEXT_DATA__): [bold cyan]{nd_bid}[/bold cyan]")
+                # If buildid looks like a version (e.g. 14.2.3), report it
+                if re.match(r'^\d+\.\d+\.\d+$', nd_bid):
+                    config.report_version(nd_bid, 0.95, "buildid")
+                    if not result["version"]:
+                        result["version"] = nd_bid
 
             if "runtimeConfig" in next_data.get("props", {}).get("pageProps", {}):
                 log_debug("runtimeConfig found in pageProps")
@@ -169,19 +198,29 @@ def fingerprint(config: ScanConfig) -> dict:
     js_chunks_to_scan = []
     for path, desc in indicator_paths:
         try:
+            config.throttle()
             r2 = session.get(f"{target}{path}", timeout=config.timeout)
+            config.record_request(r2.status_code)
             if r2.status_code == 200:
                 log_success(f"Found: {desc} [dim]({path})[/dim]")
                 result["technologies"].append(desc)
 
+                if path == "/_next/static/chunks/pages/_app.js":
+                    config.detected_router_type = "pages"
+                elif path == "/_next/static/chunks/app/layout.js":
+                    config.detected_router_type = "app"
+
                 if path.endswith(".js"):
                     js_chunks_to_scan.append((path, r2.text))
                     ver_match = re.search(r'Next\.js\s*v?(\d+\.\d+\.\d+)', r2.text)
-                    if ver_match and not result["version"]:
-                        result["version"] = ver_match.group(1)
-                        log_success(
-                            f"Version from JS: [bold green]{result['version']}[/bold green]"
-                        )
+                    if ver_match:
+                        ver = ver_match.group(1)
+                        config.report_version(ver, 0.9, "chunk_js")
+                        if not result["version"]:
+                            result["version"] = ver
+                            log_success(
+                                f"Version from JS: [bold green]{result['version']}[/bold green]"
+                            )
             else:
                 log_debug(f"[{r2.status_code}] {path}")
         except requests.RequestException as e:
@@ -190,10 +229,11 @@ def fingerprint(config: ScanConfig) -> dict:
     # ─── Step 6: Version detection from JS chunks ────────────────────────
     if not result["version"]:
         log_info("Attempting version detection from JS chunks...")
-        chunk_paths = re.findall(r'(/_next/static/chunks/[^\s"\']+\.js)', page_text)
-        for chunk_path in list(set(chunk_paths))[:5]:
+        for chunk_path in js_chunk_paths[:5]:
             try:
+                config.throttle()
                 r3 = session.get(f"{target}{chunk_path}", timeout=config.timeout)
+                config.record_request(r3.status_code)
                 if r3.status_code == 200:
                     js_chunks_to_scan.append((chunk_path, r3.text))
                     patterns = [
@@ -204,7 +244,9 @@ def fingerprint(config: ScanConfig) -> dict:
                     for pat in patterns:
                         m = re.search(pat, r3.text)
                         if m:
-                            result["version"] = m.group(1)
+                            ver = m.group(1)
+                            config.report_version(ver, 0.9, "chunk_js")
+                            result["version"] = ver
                             log_success(
                                 f"Version from chunk: [bold green]{result['version']}[/bold green]"
                             )
@@ -245,6 +287,11 @@ def fingerprint(config: ScanConfig) -> dict:
     else:
         log_debug("No Server Action IDs found in scanned JS bundles")
 
+    # If any version has been reported, use the best one
+    best_ver_sig = config.version_state.best()
+    if best_ver_sig:
+        result["version"] = best_ver_sig.value
+
     # ─── Step 8: Build vulnerability matrix ──────────────────────────────
     if result["version"]:
         log_info(f"Building vulnerability matrix for [bold]{result['version']}[/bold]...")
@@ -276,3 +323,4 @@ def fingerprint(config: ScanConfig) -> dict:
         log_info("Manual version confirmation recommended")
 
     return result
+

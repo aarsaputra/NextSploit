@@ -5,7 +5,11 @@ NextSploit — Core Configuration & Shared Resources
 
 from dataclasses import dataclass, field
 from typing import Optional
+import threading
+import time
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 import urllib3
 
 # Suppress InsecureRequestWarning for --no-verify scenarios
@@ -336,7 +340,38 @@ def check_vuln_status(detected_version: str, cve_id: str) -> str:
         return "UNKNOWN"
 
 
-# ─── Scan Configuration ─────────────────────────────────────────────────────
+# ─── Rate Limiter ───────────────────────────────────────────────────────────────────────
+
+class RateLimiter:
+    """
+    Token bucket rate limiter.
+    Call `acquire()` before each HTTP request to honour --rate-limit.
+    Thread-safe.
+    """
+
+    def __init__(self, max_per_second: float):
+        self._lock = threading.Lock()
+        self._max = max_per_second
+        self._tokens = max_per_second
+        self._last = time.monotonic()
+
+    def acquire(self) -> None:
+        if self._max <= 0:
+            return  # no limit
+        with self._lock:
+            now = time.monotonic()
+            elapsed = now - self._last
+            self._last = now
+            self._tokens = min(self._max, self._tokens + elapsed * self._max)
+            if self._tokens < 1:
+                sleep_time = (1 - self._tokens) / self._max
+                time.sleep(sleep_time)
+                self._tokens = 0
+            else:
+                self._tokens -= 1
+
+
+# ─── Scan Configuration ────────────────────────────────────────────────────────────────────
 
 @dataclass
 class ScanConfig:
@@ -344,20 +379,140 @@ class ScanConfig:
     target: str
     timeout: int = 10
     threads: int = 10
-    verbosity: int = 0  # 0=normal, 1=verbose, 2=extra verbose
-    user_agent: str = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+    verbosity: int = 0            # 0=normal, 1=verbose, 2=extra verbose
+    user_agent: str = (
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+    )
     proxy: Optional[str] = None
     verify_ssl: bool = True
     output_file: Optional[str] = None
     output_dir: str = "reports"
     cve_list: list = field(default_factory=list)
     scan_all: bool = False
-    # Extra context populated by fingerprint module
+
+    # — Fingerprint context (populated by fingerprint module) —
     discovered_build_id: Optional[str] = None
     discovered_action_ids: list = field(default_factory=list)
-    # Browser exploit integration (AnonKryptiQuz chaining)
+    discovered_js_chunks: list = field(default_factory=list)
+    discovered_css_chunks: list = field(default_factory=list)
+    detected_router_type: Optional[str] = None  # "app" | "pages" | None
+
+    # — Browser exploit integration (AnonKryptiQuz chaining) —
     browser_exploit: bool = False
     waf_bypass: bool = False
+
+    # — Rate-limiting —
+    delay: float = 0.0          # seconds between requests (--delay)
+    rate_limit: int = 0         # max requests/second (--rate-limit); 0 = no limit
+
+    # — Private: initialized in __post_init__ —
+    _counter_lock: object = field(default=None, init=False, repr=False, compare=False)
+    _blocked_requests: int = field(default=0, init=False, repr=False, compare=False)
+    _total_requests: int = field(default=0, init=False, repr=False, compare=False)
+    _rate_limiter: object = field(default=None, init=False, repr=False, compare=False)
+    _version_state: object = field(default=None, init=False, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        self._counter_lock = threading.Lock()
+        self._blocked_requests = 0
+        self._total_requests = 0
+        self._rate_limiter = RateLimiter(self.rate_limit)
+        from core.version_state import VersionState
+        self._version_state = VersionState()
+
+    # ─── Version State ─────────────────────────────────────────────────────────────
+
+    @property
+    def version_state(self):
+        return self._version_state
+
+    def report_version(self, value: str, confidence: float, source: str) -> None:
+        """
+        Report a discovered Next.js version signal from any module.
+        Thread-safe. The orchestrator reads config.version_state.best() at the
+        end of the scan to determine the authoritative version.
+
+        Args:
+            value:      Version string, e.g. "14.2.35"
+            confidence: 0.0 – 1.0
+            source:     "buildid" | "header" | "chunk_js" | "error_leak" | "module_infer"
+        """
+        self._version_state.add(value, confidence, source)
+
+    # ─── Request Counters (thread-safe) ────────────────────────────────────────────────
+
+    def record_request(self, status_code: int) -> None:
+        """
+        Record the outcome of one HTTP request.  Call this after every
+        requests.get/post inside a module so the orchestrator can compute
+        noise_ratio and determine if the result is INCONCLUSIVE.
+        Thread-safe.
+        """
+        with self._counter_lock:
+            self._total_requests += 1
+            if status_code in (403, 429, 503):
+                self._blocked_requests += 1
+
+    def noise_ratio(self) -> float:
+        """Fraction of blocked responses (0.0 – 1.0). Thread-safe."""
+        with self._counter_lock:
+            if self._total_requests == 0:
+                return 0.0
+            return self._blocked_requests / self._total_requests
+
+    def total_request_count(self) -> int:
+        """Total requests made in the current module window. Thread-safe."""
+        with self._counter_lock:
+            return self._total_requests
+
+    def reset_request_counters(self) -> None:
+        """Reset per-module counters.  Called by the orchestrator between modules."""
+        with self._counter_lock:
+            self._blocked_requests = 0
+            self._total_requests = 0
+
+    # ─── Precondition Helpers ──────────────────────────────────────────────────────────
+
+    def has_active_server_actions(self) -> bool:
+        """
+        True if the fingerprint phase discovered at least one Server Action ID.
+        Modules that depend on Server Actions should return NOT_APPLICABLE when
+        this is False.
+        """
+        return bool(self.discovered_action_ids)
+
+    def has_discovered_assets(self) -> bool:
+        """
+        True if at least one JS or CSS chunk was discovered during fingerprinting.
+        Modules that inspect static bundle contents should return NOT_APPLICABLE
+        when this is False.
+        """
+        return bool(self.discovered_js_chunks) or bool(self.discovered_css_chunks)
+
+    def has_app_router(self) -> bool:
+        """
+        True if the fingerprint phase identified the target as an App Router app.
+        Returns True also when detected_router_type is None (unknown) to avoid
+        false NOT_APPLICABLE on targets that simply hide their router type.
+        Callers may combine this with has_active_server_actions() for stricter checks.
+        """
+        if self.detected_router_type is None:
+            return True   # uncertain — do not skip the module
+        return self.detected_router_type == "app"
+
+    # ─── Rate-Limiting Helper ───────────────────────────────────────────────────────────
+
+    def throttle(self) -> None:
+        """
+        Call before each outbound HTTP request to honour --delay and
+        --rate-limit settings simultaneously.
+        """
+        if self.delay > 0:
+            time.sleep(self.delay)
+        self._rate_limiter.acquire()
+
+    # ─── Proxies ────────────────────────────────────────────────────────────────────────────
 
     @property
     def proxies(self) -> Optional[dict]:
@@ -365,8 +520,10 @@ class ScanConfig:
             return {"http": self.proxy, "https": self.proxy}
         return None
 
+    # ─── Evidence Saving ────────────────────────────────────────────────────────────────────
+
     def save_response(self, filename: str, response: requests.Response) -> str:
-        """Save full HTTP response (status, headers, and body) to output_dir."""
+        """Save full HTTP response (status, headers, body) to output_dir."""
         import os
         os.makedirs(self.output_dir, exist_ok=True)
         filepath = os.path.join(self.output_dir, filename)
@@ -381,9 +538,18 @@ class ScanConfig:
         except Exception:
             return ""
 
+    # ─── Session Factory ────────────────────────────────────────────────────────────────────
+
     def create_session(self) -> requests.Session:
-        """Create a configured requests.Session."""
-        session = requests.Session()
+        """
+        Create a configured NextSploitSession (subclass of requests.Session) with:
+        - Custom User-Agent and standard Accept headers
+        - Proxy passthrough (--proxy)
+        - Automatic retry with exponential backoff on 429/503
+          (up to 3 retries, respects Retry-After header)
+        - Automated rate limiting, delay, and blocked request tracking.
+        """
+        session = NextSploitSession(self)
         session.headers.update({
             "User-Agent": self.user_agent,
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -393,4 +559,40 @@ class ScanConfig:
         if self.proxies:
             session.proxies.update(self.proxies)
         session.verify = self.verify_ssl
+
+        # Retry adapter: back-off on transient errors and rate-limit responses
+        retry_strategy = Retry(
+            total=3,
+            backoff_factor=1.5,              # waits: 1.5s, 3s, 4.5s
+            status_forcelist=[429, 503],     # retry these status codes
+            respect_retry_after_header=True,  # honour Retry-After
+            allowed_methods=["GET", "POST", "HEAD"],
+        )
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        session.mount("https://", adapter)
+        session.mount("http://",  adapter)
+
         return session
+
+
+class NextSploitSession(requests.Session):
+    """
+    Subclass of requests.Session that intercepts all HTTP requests to
+    automatically apply rate-limiting/delay and record stats for WAF noise analysis.
+    """
+
+    def __init__(self, config: ScanConfig):
+        super().__init__()
+        self.config = config
+
+    def request(self, method, url, *args, **kwargs):
+        self.config.throttle()
+        try:
+            resp = super().request(method, url, *args, **kwargs)
+            self.config.record_request(resp.status_code)
+            return resp
+        except Exception:
+            # Treat network exceptions (timeouts/connection drop) as potential WAF block
+            self.config.record_request(503)
+            raise
+

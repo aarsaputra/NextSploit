@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """
 NextSploit — Report Generator (JSON / HTML / TXT)
+
+Schema version history:
+  2.2 — original two-status schema (VULNERABLE / NOT VULNERABLE)
+  2.3 — adds NOT_APPLICABLE, INCONCLUSIVE; adds noise_ratio per module
 """
 
 import json
@@ -11,8 +15,30 @@ from typing import Optional
 
 from core.output import console, log_info, log_success, log_error
 
+# ─── Schema Version ──────────────────────────────────────────────────────────
+# Bump when new status values or mandatory fields are introduced so that
+# external consumers (CI pipelines, scripts) can detect the change.
+REPORT_SCHEMA_VERSION = "2.3"
+
+
+# ─── Status Constants ────────────────────────────────────────────────────────
+
+class ScanStatus:
+    """Canonical status strings for Finding and ModuleResult."""
+    VULNERABLE     = "VULNERABLE"
+    SAFE           = "NOT VULNERABLE"
+    NOT_APPLICABLE = "NOT_APPLICABLE"   # precondition not met; module skipped
+    INCONCLUSIVE   = "INCONCLUSIVE"     # >30% noise (WAF/rate-limit)
+    ERROR          = "ERROR"
+
+    # All valid values — useful for validation / documentation
+    ALL = {
+        "VULNERABLE", "NOT VULNERABLE",
+        "NOT_APPLICABLE", "INCONCLUSIVE", "ERROR",
+    }
 
 # ─── Data Classes ────────────────────────────────────────────────────────────
+
 
 @dataclass
 class Finding:
@@ -20,16 +46,16 @@ class Finding:
     cve: str
     severity: str
     title: str
-    status: str  # VULNERABLE, NOT VULNERABLE, ERROR
+    status: str   # Use ScanStatus constants
     detail: str = ""
     evidence: dict = field(default_factory=dict)
-    confidence: float = 0.5  # 0.0 - 1.0
+    confidence: float = 0.5  # 0.0 – 1.0
 
     def compute_confidence(self) -> float:
         score = self.confidence
         if self.severity == "CRITICAL": score += 0.2
         elif self.severity == "HIGH":   score += 0.1
-        if self.status == "VULNERABLE": score += 0.2
+        if self.status == ScanStatus.VULNERABLE: score += 0.2
         if self.evidence.get("baseline_confirmed"): score += 0.1
         return min(1.0, score)
 
@@ -39,23 +65,27 @@ class Finding:
         return d
 
 
-
 @dataclass
 class ModuleResult:
     """Result from a single scanner module."""
     cve: str
     title: str
     severity: str
-    status: str  # VULNERABLE, NOT VULNERABLE, ERROR
+    status: str   # Use ScanStatus constants; default to SAFE
     findings: list = field(default_factory=list)
     finding_count: int = 0
     error: str = ""
+    # Populated by orchestrator after the module finishes
+    noise_ratio: float = 0.0
+    total_requests: int = 0
 
     def add_finding(self, finding: Finding):
         self.findings.append(finding)
         self.finding_count = len(self.findings)
-        if finding.status == "VULNERABLE":
-            self.status = "VULNERABLE"
+        # Only VULNERABLE findings escalate module status;
+        # all other status changes must be set explicitly on result.status.
+        if finding.status == ScanStatus.VULNERABLE:
+            self.status = ScanStatus.VULNERABLE
 
     def to_dict(self) -> dict:
         return {
@@ -65,6 +95,8 @@ class ModuleResult:
             "status": self.status,
             "finding_count": self.finding_count,
             "findings": [f.to_dict() for f in self.findings],
+            "noise_ratio": round(self.noise_ratio, 3),
+            "total_requests": self.total_requests,
             "error": self.error,
         }
 
@@ -96,12 +128,15 @@ class ScanReport:
 
     def to_dict(self) -> dict:
         total = len(self.module_results)
-        vuln = sum(1 for r in self.module_results if r.status == "VULNERABLE")
-        safe = sum(1 for r in self.module_results if r.status == "NOT VULNERABLE")
-        errors = sum(1 for r in self.module_results if r.status == "ERROR")
+        vuln   = sum(1 for r in self.module_results if r.status == ScanStatus.VULNERABLE)
+        safe   = sum(1 for r in self.module_results if r.status == ScanStatus.SAFE)
+        na     = sum(1 for r in self.module_results if r.status == ScanStatus.NOT_APPLICABLE)
+        incon  = sum(1 for r in self.module_results if r.status == ScanStatus.INCONCLUSIVE)
+        errors = sum(1 for r in self.module_results if r.status == ScanStatus.ERROR)
 
         from core.version import APP_NAME, APP_VERSION
         return {
+            "schema_version": REPORT_SCHEMA_VERSION,
             "tool": APP_NAME,
             "version": APP_VERSION,
             "target": self.target,
@@ -114,6 +149,8 @@ class ScanReport:
                 "total_modules": total,
                 "vulnerable": vuln,
                 "not_vulnerable": safe,
+                "not_applicable": na,
+                "inconclusive": incon,
                 "errors": errors,
                 "total_findings": sum(r.finding_count for r in self.module_results),
             },
@@ -121,7 +158,7 @@ class ScanReport:
 
 
     def get_summary_rows(self) -> list:
-        """Get summary data for the Rich table."""
+        """Get summary data for the Rich table (includes noise_ratio)."""
         rows = []
         for r in self.module_results:
             rows.append({
@@ -130,6 +167,8 @@ class ScanReport:
                 "severity": r.severity,
                 "status": r.status,
                 "finding_count": r.finding_count,
+                "noise_ratio": r.noise_ratio,
+                "total_requests": r.total_requests,
             })
         return rows
 

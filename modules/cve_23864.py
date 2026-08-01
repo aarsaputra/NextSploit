@@ -94,13 +94,23 @@ def scan(config: ScanConfig) -> ModuleResult:
         status="NOT VULNERABLE",
     )
 
+    # Precondition Checks
+    # CVE-2026-23864 targets React Flight protocol decoder on Server Action endpoints.
+    # It requires Server Actions.
+    if not config.has_active_server_actions():
+        result.status = "NOT_APPLICABLE"
+        log_info(f"[{CVE_ID}] No active Server Action IDs discovered. Skipping.")
+        return result
+
     session = config.create_session()
     target  = config.target.rstrip("/")
 
     log_info(f"Starting {CVE_ID} scan — RSC Memory Exhaustion DoS...")
 
     # ── Phase 1: Version-based check (highest confidence) ─────────────────────
-    version_detected = getattr(config, "discovered_version", None)
+    best_ver = config.version_state.best()
+    version_detected = best_ver.value if best_ver else None
+
     if version_detected:
         log_debug(f"Detected Next.js version: {version_detected}")
         vuln_status = check_vuln_status(version_detected, CVE_ID)
@@ -211,3 +221,4 @@ def scan(config: ScanConfig) -> ModuleResult:
         log_success(f"No {CVE_ID} indicators detected on target.")
 
     return result
+

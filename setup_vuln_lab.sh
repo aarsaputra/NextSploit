@@ -1,10 +1,10 @@
 #!/bin/bash
 # Next.js Vulnerable Lab Setup (2024–2026)
-# Target Directory: /nextjs-vuln-lab
+# Target Directory: ./vuln-lab
 
 set -e
 
-LAB_DIR="/nextjs-vuln-lab"
+LAB_DIR="$(pwd)/vuln-lab"
 USER_NAME=$SUDO_USER
 
 if [ -z "$USER_NAME" ]; then
@@ -16,13 +16,13 @@ echo -e "\033[1;34m[*] Starting Next.js Vulnerable Lab Setup...\033[0m"
 # 1. Create directory and set permissions
 if [ ! -d "$LAB_DIR" ]; then
     echo -e "\033[1;33m[*] Creating lab directory at $LAB_DIR...\033[0m"
-    sudo mkdir -p "$LAB_DIR"
-    sudo chown -R "$USER_NAME:$USER_NAME" "$LAB_DIR"
+    mkdir -p "$LAB_DIR"
 else
     echo -e "\033[1;32m[+] Lab directory already exists at $LAB_DIR.\033[0m"
 fi
 
 cd "$LAB_DIR"
+
 
 # Helper function to generate and patch lab apps
 create_lab() {
@@ -155,5 +155,5 @@ EOF
 
 echo -e "\n\033[1;32m[+] All labs generated successfully in $LAB_DIR!\033[0m"
 echo -e "\033[1;34m[*] To run a lab:\033[0m"
-echo -e "  cd /nextjs-vuln-lab/lab-1-auth-bypass"
+echo -e "  cd ./vuln-lab/lab-1-auth-bypass"
 echo -e "  npm run dev (Runs on http://localhost:3000)"

@@ -58,12 +58,20 @@ def scan(config: ScanConfig) -> ModuleResult:
         severity=CVE_INFO["severity"],
         status="NOT VULNERABLE",
     )
+
+    # Precondition Checks
+    if not config.has_app_router():
+        result.status = "NOT_APPLICABLE"
+        log_info(f"[{CVE_ID}] App router not detected. Skipping.")
+        return result
+
     session = config.create_session()
     target  = config.target.rstrip("/")
 
     log_info(f"Starting {CVE_ID} scan — PPR/Cache Components Deadlock DoS...")
 
-    version_detected   = getattr(config, "discovered_version", None)
+    best_ver = config.version_state.best()
+    version_detected = best_ver.value if best_ver else None
     version_vulnerable = False
 
     if version_detected:
@@ -117,3 +125,4 @@ def scan(config: ScanConfig) -> ModuleResult:
         confidence=confidence,
     ))
     return result
+

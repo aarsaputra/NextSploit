@@ -147,8 +147,9 @@ def print_summary_table(findings: list):
     table.add_column("CVE / Module", style="bold white", min_width=18)
     table.add_column("Title", style="white", min_width=25)
     table.add_column("Severity", justify="center", min_width=10)
-    table.add_column("Status", justify="center", min_width=14)
+    table.add_column("Status", justify="center", min_width=16)
     table.add_column("Findings", justify="center", min_width=8)
+    table.add_column("Reliability", justify="center", min_width=12)
 
     sev_colors = {
         "CRITICAL": "bold red",
@@ -158,14 +159,20 @@ def print_summary_table(findings: list):
     }
 
     for f in findings:
-        sev = f.get("severity", "UNKNOWN")
-        color = sev_colors.get(sev, "white")
+        sev    = f.get("severity", "UNKNOWN")
+        color  = sev_colors.get(sev, "white")
         status = f.get("status", "UNKNOWN")
+        noise  = f.get("noise_ratio", 0.0)
+        total  = f.get("total_requests", 0)
 
         if status == "VULNERABLE":
             status_style = "[bold red]⚠ VULNERABLE[/bold red]"
         elif status == "NOT VULNERABLE":
             status_style = "[bold green]✓ SAFE[/bold green]"
+        elif status == "NOT_APPLICABLE":
+            status_style = "[dim blue]◌ N/A[/dim blue]"
+        elif status == "INCONCLUSIVE":
+            status_style = "[bold magenta]? INCONCLUSIVE[/bold magenta]"
         elif status == "ERROR":
             status_style = "[dim red]✗ ERROR[/dim red]"
         else:
@@ -174,12 +181,23 @@ def print_summary_table(findings: list):
         count = f.get("finding_count", 0)
         count_style = f"[bold red]{count}[/bold red]" if count > 0 else f"[dim]{count}[/dim]"
 
+        # Reliability column: color-code by noise ratio
+        if total == 0:
+            reliability_style = "[dim]—[/dim]"
+        elif noise >= 0.3:
+            reliability_style = f"[bold red]{noise:.0%} noise[/bold red]"
+        elif noise >= 0.1:
+            reliability_style = f"[yellow]{noise:.0%} noise[/yellow]"
+        else:
+            reliability_style = f"[green]✓ {noise:.0%}[/green]"
+
         table.add_row(
             f.get("cve", "N/A"),
             f.get("title", "N/A"),
             f"[{color}]{sev}[/{color}]",
             status_style,
             count_style,
+            reliability_style,
         )
 
     console.print()
@@ -210,6 +228,45 @@ def print_finding(cve: str, detail: str, evidence: dict = None):
     if evidence and _verbosity >= 1:
         for k, v in evidence.items():
             console.print(f"    [dim cyan]{k}:[/dim cyan] {v}")
+
+
+def print_module_footer(
+    cve_id: str,
+    endpoints_tested: int,
+    payloads_sent: int,
+    blocked: int,
+    total_requests: int,
+    status: str,
+    confidence: float,
+) -> None:
+    """
+    Print a standardized one-line summary at the end of every module.
+    Format:
+      [MODULE] CVE-XXXX — tested N endpoints, M payloads,
+               K/T blocked (noise: X%) — Status: STATUS (conf: 0.XX)
+    """
+    noise_pct = (blocked / total_requests * 100) if total_requests > 0 else 0.0
+
+    status_colors = {
+        "VULNERABLE":     "bold red",
+        "NOT VULNERABLE": "bold green",
+        "NOT_APPLICABLE": "dim blue",
+        "INCONCLUSIVE":   "bold magenta",
+        "ERROR":          "dim red",
+    }
+    s_color = status_colors.get(status, "white")
+
+    noise_color = "red" if noise_pct >= 30 else ("yellow" if noise_pct >= 10 else "green")
+
+    console.print(
+        f"\n  [dim cyan][MODULE][/dim cyan] [bold]{cve_id}[/bold] — "
+        f"tested [cyan]{endpoints_tested}[/cyan] endpoints, "
+        f"[cyan]{payloads_sent}[/cyan] payloads, "
+        f"[{noise_color}]{blocked}/{total_requests} blocked "
+        f"(noise: {noise_pct:.0f}%)[/{noise_color}] — "
+        f"Status: [{s_color}]{status}[/{s_color}] "
+        f"[dim](conf: {confidence:.2f})[/dim]"
+    )
 
 
 def print_vuln_matrix(matrix: list):

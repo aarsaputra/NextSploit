@@ -98,13 +98,22 @@ def scan(config: ScanConfig) -> ModuleResult:
         severity=CVE_INFO["severity"],
         status="NOT VULNERABLE",
     )
+
+    # Precondition Checks
+    if not config.has_app_router():
+        result.status = "NOT_APPLICABLE"
+        log_info(f"[{CVE_ID}] App router not detected. Skipping.")
+        return result
+
     session = config.create_session()
     target  = config.target.rstrip("/")
 
     log_info(f"Starting {CVE_ID} scan — Middleware Bypass via Turbopack (incomplete fix)...")
 
     # ── Phase 1: Version check ────────────────────────────────────────────────
-    version_detected = getattr(config, "discovered_version", None)
+    best_ver = config.version_state.best()
+    version_detected = best_ver.value if best_ver else None
+
     if version_detected:
         log_debug(f"Detected version: {version_detected}")
         vuln_status = check_vuln_status(version_detected, CVE_ID)
@@ -183,3 +192,4 @@ def scan(config: ScanConfig) -> ModuleResult:
         confidence=confidence,
     ))
     return result
+

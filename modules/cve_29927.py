@@ -11,7 +11,7 @@ Affected: Next.js < 14.2.25
 import requests
 import os
 
-from core.config import ScanConfig, CVE_DATABASE
+from core.config import ScanConfig, CVE_DATABASE, check_vuln_status
 from core.reporter import ModuleResult, Finding
 from core.output import (
     log_info, log_success, log_warning, log_critical, log_debug,
@@ -122,12 +122,23 @@ def scan(config: ScanConfig) -> ModuleResult:
         status="NOT VULNERABLE",
     )
 
-    print_module_header(CVE_ID, CVE_INFO["title"], CVE_INFO["severity"])
+    from core.output import print_section
+    print_section(f"Module: {CVE_ID}", CVE_INFO["title"])
     session = config.create_session()
     target = config.target.rstrip("/")
 
+    best_ver = config.version_state.best()
+    version_detected = best_ver.value if best_ver else None
+    if version_detected:
+        log_debug(f"Detected Next.js version: {version_detected}")
+        vuln_status = check_vuln_status(version_detected, CVE_ID)
+        if vuln_status == "PATCHED":
+            log_success(f"Version {version_detected} is patched for {CVE_ID}.")
+            return result
+
     log_info(f"Testing {len(PROTECTED_PATHS)} paths × {len(MIDDLEWARE_VARIANTS)} header variants")
     log_info(f"Fix version: {CVE_INFO['fix_version']}")
+
 
     total_tests = len(PROTECTED_PATHS) * len(MIDDLEWARE_VARIANTS)
 

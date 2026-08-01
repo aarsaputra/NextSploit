@@ -340,8 +340,47 @@ def scan_target(target: str, config: ScanConfig, run_all: bool, cve_args: str, r
     )
 
     for mod_id in modules_to_run:
+        config.reset_request_counters()
         mod_result = run_module(mod_id, config)
+
+        # Retrieve request statistics and calculate WAF noise
+        total_reqs = config.total_request_count()
+        blocked_reqs = config.noise_ratio() * total_reqs  # approximate or keep exact
+        # Note: self._blocked_requests is private but we can calculate or expose it.
+        # Let's read it directly if possible, or add a config helper.
+        # Actually, let's expose it in ScanConfig or calculate.
+        # We can just get config.noise_ratio() and total_reqs.
+        noise = config.noise_ratio()
+        blocked = int(round(noise * total_reqs))
+
+        # Check if the scan is inconclusive due to high WAF blocking/noise
+        if noise >= 0.3 and total_reqs >= 10:
+            if mod_result.status != "VULNERABLE":
+                mod_result.status = "INCONCLUSIVE"
+
+        # Populate module result stats
+        mod_result.noise_ratio = noise
+        mod_result.total_requests = total_reqs
+
         report.add_result(mod_result)
+
+        # Print standardized module footer
+        from core.output import print_module_footer
+        # Estimate endpoints and payloads from module results if not explicitly tracked
+        endpoints_tested = len(set(f.evidence.get("path", "/") for f in mod_result.findings)) if mod_result.findings else 1
+        payloads_sent = total_reqs
+        confidence = max((f.compute_confidence() for f in mod_result.findings), default=0.5)
+
+        print_module_footer(
+            cve_id=mod_result.cve,
+            endpoints_tested=endpoints_tested,
+            payloads_sent=payloads_sent,
+            blocked=blocked,
+            total_requests=total_reqs,
+            status=mod_result.status,
+            confidence=confidence
+        )
+
 
     # ─── Reporting Phase ─────────────────────────────────────────────────────
     print_summary_table(report.get_summary_rows())
