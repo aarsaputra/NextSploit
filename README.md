@@ -121,6 +121,8 @@ NextSploit/
 │   ├── cve_29927.py         # Middleware Auth Bypass + Browser Exploit Chain
 │   ├── cve_34351.py         # Server Action Host-Header SSRF validator
 │   ├── cve_57822.py         # Baseline-safe SSRF Header Scanner
+│   ├── cve_55183.py         # Source Code Exposure Scanner
+│   ├── cve_55184.py         # DoS Detection (Passive) Scanner
 │   ├── cve_66478.py         # React2Shell RSC Deserialization scanner (Passive)
 │   ├── cve_46982.py         # Cache Poisoning / Stored XSS Scanner
 │   ├── cve_56332.py         # Pathname Middleware Bypass Scanner
@@ -128,6 +130,7 @@ NextSploit/
 │   ├── cve_34350.py         # HTTP Request Smuggling Check Scanner
 │   ├── cve_59471.py         # Image Optimizer DoS Check Scanner
 │   ├── cve_23870.py         # DoS via RSC Deserialization Scanner
+│   ├── cve_67779.py         # DoS Incomplete Fix — Infinite Promise Loop Scanner
 │   ├── cve_44575.py         # Middleware Bypass via Segment-Prefetch (.rsc)
 │   ├── cve_23864.py         # RSC Memory Exhaustion DoS via FormData $K tokens
 │   ├── ghsa_mg66.py         # PPR/Cache Components Deadlock DoS
@@ -142,7 +145,8 @@ NextSploit/
 │   ├── cve_64644.py         # DoS Image Optimization API via SVG
 │   ├── cve_64646.py         # Unbounded SA Payload Edge Runtime Memory Exhaustion
 │   ├── cve_64648.py         # Cache Confusion via fetch() Response Body Mismatch
-│   └── cve_64647.py         # Cache Confusion via Invalid UTF-8 Request Body
+│   ├── cve_64647.py         # Cache Confusion via Invalid UTF-8 Request Body
+│   └── rsc_attack.py        # RSC Protocol & Server Actions Audit
 └── reports/
     └── <domain>/            # Target-isolated report storage (JSON reports & HTTP response artifacts)
 ```
@@ -151,37 +155,37 @@ NextSploit/
 
 ## 🧪 **Available Scanning Modules (29 Modules)**
 
-| Module CLI Key (`--cve`) | CVE / ID | Vulnerability Type | Severity | Fix Version (15.x / 16.x) |
-|:---:|:---|:---|:---:|:---:|
-| `64645` | CVE-2026-64645 | SSRF via rewrites()/redirects() Hostname Injection | HIGH | 15.5.21 / 16.2.11 |
-| `64642` | CVE-2026-64642 | Middleware Bypass — Turbopack + Single Locale | HIGH | 15.5.21 / 16.2.11 |
-| `64641` | CVE-2026-64641 | DoS App Router via Server Actions CPU Exhaustion | HIGH | 15.5.21 / 16.2.11 |
-| `64649` | CVE-2026-64649 | SSRF Server Actions Host Header (Custom Server) | HIGH | 15.5.21 / 16.2.11 |
-| `44573` | CVE-2026-44573 | Pages Router i18n Data-Route Middleware Bypass | HIGH | 15.5.16 / 16.2.5 |
-| `44578` | CVE-2026-44578 | WebSocket Upgrade SSRF (Self-Hosted, 16.x only) | HIGH | 16.2.5 (16.x only) |
-| `64643` | CVE-2026-64643 | Server Action / use cache Endpoint ID Leak | MEDIUM | 15.5.21 / 16.2.11 |
-| `64644` | CVE-2026-64644 | DoS Image Optimization API via SVG | MEDIUM | 15.5.21 / 16.2.11 |
-| `64646` | CVE-2026-64646 | Unbounded SA Payload Edge Runtime Memory Exh. | MEDIUM | 15.5.21 / 16.2.11 |
-| `64648` | CVE-2026-64648 | Cache Confusion — fetch() Response Body Mismatch | MEDIUM | 15.5.21 / 16.2.11 |
-| `64647` | CVE-2026-64647 | Cache Confusion — Invalid UTF-8 Request Body | MEDIUM | 15.5.21 / 16.2.11 |
-| `29927` | CVE-2025-29927 | Middleware Auth Bypass | CRITICAL | 14.2.25 |
-| `66478` | CVE-2025-66478 | React2Shell RCE via RSC Flight | CRITICAL | 15.0.5 |
-| `57822` | CVE-2025-57822 | SSRF via HTTP Headers | HIGH | 14.2.32 |
-| `34351` | CVE-2024-34351 | SSRF via Server Action Host | HIGH | 14.1.1 |
-| `55183` | CVE-2025-55183 | Source Code Exposure | MEDIUM | 14.2.35 |
-| `55184` | CVE-2025-55184 | DoS Detection (Passive) | HIGH | 14.2.35 |
-| `46982` | CVE-2024-46982 | Cache Poisoning / Stored XSS | HIGH | 14.2.10 |
-| `56332` | CVE-2024-56332 | Pathname Middleware Bypass | HIGH | 14.2.25 |
-| `48068` | CVE-2025-48068 | Dev Server Source Exposure | MEDIUM | 15.2.2 |
-| `34350` | CVE-2024-34350 | HTTP Request Smuggling | HIGH | 13.5.1 |
-| `59471` | CVE-2025-59471 | Image Optimizer DoS Check | MEDIUM | 15.5.10 |
-| `23870` | CVE-2026-23870 | DoS via RSC Deserialization | HIGH | 15.5.16 |
-| `67779` | CVE-2025-67779 | DoS via Infinite Promise Loop | HIGH | 15.5.9 |
-| `44575` | CVE-2026-44575 | Middleware Bypass (.rsc / prefetch) | HIGH | 15.5.16 |
-| `23864` | CVE-2026-23864 | DoS RSC Memory Exhaustion ($K) | HIGH | 15.5.10 |
-| `mg66`  | GHSA-mg66-mrh9-m8jx | DoS PPR/Cache Components Deadlock | HIGH | 15.5.16 / 16.2.5 |
-| `45109` | CVE-2026-45109 | Middleware Bypass via Turbopack | HIGH | 15.5.18 |
-| `rsc`   | RSC-Attack | RSC Protocol & Server Actions Audit | INFO | All App Router versions |
+| Module CLI Key (`--cve`) | CVE / ID | Vulnerability Type | Severity | Fix Version (15.x / 16.x) | Execution Mode |
+|:---:|:---|:---|:---:|:---:|:---:|
+| `64645` | CVE-2026-64645 | SSRF via rewrites()/redirects() Hostname Injection | HIGH | 15.5.21 / 16.2.11 | ⚡ needs `--confirm-active` |
+| `64642` | CVE-2026-64642 | Middleware Bypass — Turbopack + Single Locale | HIGH | 15.5.21 / 16.2.11 | 🔒 passive default |
+| `64641` | CVE-2026-64641 | DoS App Router via Server Actions CPU Exhaustion | HIGH | 15.5.21 / 16.2.11 | 🔒 passive default |
+| `64649` | CVE-2026-64649 | SSRF Server Actions Host Header (Custom Server) | HIGH | 15.5.21 / 16.2.11 | ⚡ needs `--confirm-active` |
+| `44573` | CVE-2026-44573 | Pages Router i18n Data-Route Middleware Bypass | HIGH | 15.5.16 / 16.2.5 | 🔒 passive default |
+| `44578` | CVE-2026-44578 | WebSocket Upgrade SSRF (Self-Hosted, 16.x only) | HIGH | 16.2.5 (16.x only) | 🔒 passive default |
+| `64643` | CVE-2026-64643 | Server Action / use cache Endpoint ID Leak | MEDIUM | 15.5.21 / 16.2.11 | 🔒 passive default |
+| `64644` | CVE-2026-64644 | DoS Image Optimization API via SVG | MEDIUM | 15.5.21 / 16.2.11 | 🔒 passive default |
+| `64646` | CVE-2026-64646 | Unbounded SA Payload Edge Runtime Memory Exh. | MEDIUM | 15.5.21 / 16.2.11 | 🔒 passive default |
+| `64648` | CVE-2026-64648 | Cache Confusion — fetch() Response Body Mismatch | MEDIUM | 15.5.21 / 16.2.11 | ⚡ needs `--confirm-active` |
+| `64647` | CVE-2026-64647 | Cache Confusion — Invalid UTF-8 Request Body | MEDIUM | 15.5.21 / 16.2.11 | ⚡ needs `--confirm-active` |
+| `29927` | CVE-2025-29927 | Middleware Auth Bypass | CRITICAL | 14.2.25 | 🔒 passive default |
+| `66478` | CVE-2025-66478 | React2Shell RCE via RSC Flight | CRITICAL | 15.0.5 | 🔒 passive default |
+| `57822` | CVE-2025-57822 | SSRF via HTTP Headers | HIGH | 14.2.32 | 🔒 passive default |
+| `34351` | CVE-2024-34351 | SSRF via Server Action Host | HIGH | 14.1.1 | 🔒 passive default |
+| `55183` | CVE-2025-55183 | Source Code Exposure | MEDIUM | 14.2.35 | 🔒 passive default |
+| `55184` | CVE-2025-55184 | DoS Detection (Passive) | HIGH | 14.2.35 | 🔒 passive default |
+| `46982` | CVE-2024-46982 | Cache Poisoning / Stored XSS | HIGH | 14.2.10 | 🔒 passive default |
+| `56332` | CVE-2024-56332 | Pathname Middleware Bypass | HIGH | 14.2.25 | 🔒 passive default |
+| `48068` | CVE-2025-48068 | Dev Server Source Exposure | MEDIUM | 15.2.2 | 🔒 passive default |
+| `34350` | CVE-2024-34350 | HTTP Request Smuggling | HIGH | 13.5.1 | 🔒 passive default |
+| `59471` | CVE-2025-59471 | Image Optimizer DoS Check | MEDIUM | 15.5.10 | 🔒 passive default |
+| `23870` | CVE-2026-23870 | DoS via RSC Deserialization | HIGH | 15.5.16 | 🔒 passive default |
+| `67779` | CVE-2025-67779 | DoS via Infinite Promise Loop | HIGH | 15.5.9 | 🔒 passive default |
+| `44575` | CVE-2026-44575 | Middleware Bypass (.rsc / prefetch) | HIGH | 15.5.16 | 🔒 passive default |
+| `23864` | CVE-2026-23864 | DoS RSC Memory Exhaustion ($K) | HIGH | 15.5.10 | 🔒 passive default |
+| `mg66`  | GHSA-mg66-mrh9-m8jx | DoS PPR/Cache Components Deadlock | HIGH | 15.5.16 / 16.2.5 | 🔒 passive default |
+| `45109` | CVE-2026-45109 | Middleware Bypass via Turbopack | HIGH | 15.5.18 | 🔒 passive default |
+| `rsc`   | RSC-Attack | RSC Protocol & Server Actions Audit | INFO | All App Router versions | 🔒 passive default |
 
 ---
 
@@ -193,9 +197,21 @@ NextSploit/
 | **July 2026** | CVE-2026-64642 | HIGH | `>= 15.0.0, < 15.5.21` \| `>= 16.0.0, < 16.2.11` | 15.5.21 / 16.2.11 |
 | **July 2026** | CVE-2026-64641 | HIGH | `>= 15.0.0, < 15.5.21` \| `>= 16.0.0, < 16.2.11` | 15.5.21 / 16.2.11 |
 | **July 2026** | CVE-2026-64649 | HIGH | `>= 15.0.0, < 15.5.21` \| `>= 16.0.0, < 16.2.11` | 15.5.21 / 16.2.11 |
-| **May 2026** | CVE-2026-44573 | HIGH | `>= 13.0.0, < 15.5.16` \| `>= 16.0.0, < 16.2.5` | 15.5.16 / 16.2.5 |
+| **May 2026** | CVE-2026-44573 | HIGH | `>= 12.2.0, < 15.5.16` \| `>= 16.0.0, < 16.2.5` | 15.5.16 / 16.2.5 |
 | **May 2026** | CVE-2026-44578 | HIGH | `>= 16.0.0, < 16.2.5` (16.x only) | 16.2.5 |
 | **May 2026** | CVE-2026-44579 (mg66) | HIGH | `>= 15.0.0, < 15.5.16` \| `>= 16.0.0, < 16.2.5` | 15.5.16 / 16.2.5 |
+
+---
+
+## 📖 **Status Legend**
+
+| Status | Meaning |
+|:---|:---|
+| `VULNERABLE` | Vulnerability indicator confirmed above confidence threshold. |
+| `NOT VULNERABLE` (SAFE) | Full scan completed; no vulnerability indicators detected. |
+| `NOT_APPLICABLE` | Target does not fulfill preconditions (e.g., missing App Router or active Server Actions) — module skipped. |
+| `INCONCLUSIVE` | Black-box precondition could not be fully verified or WAF rate-limiting interfered — manual review recommended. |
+| `ERROR` | Execution failed due to a network, connection, or parsing error. |
 
 ---
 

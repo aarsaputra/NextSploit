@@ -323,7 +323,7 @@ CVE_DATABASE = {
         "type": "Auth Bypass",
         "severity": "HIGH",
         "ranges": [
-            {"min_version": "13.0.0", "fix_version": "15.5.16", "branch": "15.x"},
+            {"min_version": "12.2.0", "fix_version": "15.5.16", "branch": "15.x"},
             {"min_version": "16.0.0", "fix_version": "16.2.5",  "branch": "16.x"},
         ],
         "description": (
