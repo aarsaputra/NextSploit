@@ -50,6 +50,10 @@ class TargetProfile:
     capabilities: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     evidence: Dict[str, Any] = field(default_factory=dict)
 
+    # Discovered routes (populated during recon/crawl)
+    # Used by RuleEngine for realistic path probing instead of hardcoded defaults
+    discovered_paths: List[str] = field(default_factory=list)
+
 
 
 class ScanContext:
@@ -81,3 +85,8 @@ class ScanContext:
             "details": details,
             "status": status,
         })
+
+    @property
+    def target_url(self) -> str:
+        """Alias for self.target — provides consistent access for Rule Engine."""
+        return self.target

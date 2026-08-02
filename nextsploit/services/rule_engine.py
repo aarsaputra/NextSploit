@@ -5,8 +5,8 @@ Architecture:
   RuleLoader     → reads YAML files → List[Rule]
   RuleFilter     → applies version/capability constraints
   MatcherEngine  → evaluates all match conditions against a response
-  RuleRunner     → sends HTTP requests, collects results
-  FindingFactory → converts matched rules into Finding objects
+  RuleRunner     → sends HTTP requests, iterates paths[], collects results
+  FindingFactory → converts matched rules into Finding objects with rich evidence
 """
 
 import os
@@ -76,9 +76,8 @@ class RuleFilter:
     """
     Filters loaded rules against the current ScanContext.
     A rule is eligible if:
-      1. Target technology matches (e.g. 'nextjs').
-      2. Target framework version satisfies the rule's version constraint.
-      3. All required capabilities exist in the target profile.
+      1. Target framework version satisfies the rule's version constraint.
+      2. All required capabilities exist in the target profile.
     """
 
     def filter(self, rules: List[Rule], context: Any) -> List[Rule]:
@@ -88,14 +87,13 @@ class RuleFilter:
         for rule in rules:
             constraint = rule.target
 
-            # 1. Technology check — skip if profile is missing framework version entirely
-            # (heuristic: if no framework version, we can't verify version constraints)
+            # 1. Version constraint check
             if constraint.version != "*" and profile:
                 fw_version = getattr(profile, "framework_version", None) or ""
                 if fw_version and not check_version_constraint(fw_version, constraint.version):
                     log_debug(
-                        f"Rule '{rule.id}' skipped: target version "
-                        f"'{fw_version}' does not match constraint '{constraint.version}'."
+                        f"Rule '{rule.id}' skipped: version "
+                        f"'{fw_version}' does not match '{constraint.version}'."
                     )
                     continue
 
@@ -106,9 +104,7 @@ class RuleFilter:
                     if not getattr(profile, cap, False)
                 ]
                 if missing:
-                    log_debug(
-                        f"Rule '{rule.id}' skipped: missing capabilities {missing}."
-                    )
+                    log_debug(f"Rule '{rule.id}' skipped: missing capabilities {missing}.")
                     continue
 
             eligible.append(rule)
@@ -140,7 +136,7 @@ class MatcherEngine:
                 result = self._run_condition(response, condition)
                 if not result:
                     return False, []
-                evidence.append(self._describe(condition, True))
+                evidence.append(self._describe(condition))
 
         # ANY conditions — at least one must pass
         if match_block.any:
@@ -149,12 +145,12 @@ class MatcherEngine:
                 result = self._run_condition(response, condition)
                 if result:
                     any_passed = True
-                    evidence.append(self._describe(condition, True))
+                    evidence.append(self._describe(condition))
                     break
             if not any_passed:
                 return False, []
 
-        # If neither all nor any conditions are defined, treat as "no conditions" = no match
+        # If neither all nor any conditions are defined, no match
         if not match_block.all and not match_block.any:
             return False, []
 
@@ -165,11 +161,11 @@ class MatcherEngine:
             matcher = default_registry.get(condition.type)
             return matcher.match(response, condition)
         except Exception as e:
-            log_warning(f"Matcher '{condition.type}' raised exception: {e}")
+            log_warning(f"Matcher '{condition.type}' raised: {e}")
             return False
 
-    def _describe(self, condition: MatchCondition, passed: bool) -> str:
-        return f"{condition.type}[{condition.operator}={condition.value}]={'PASS' if passed else 'FAIL'}"
+    def _describe(self, condition: MatchCondition) -> str:
+        return f"{condition.type}[{condition.operator}={condition.value}]=PASS"
 
 
 # ────────────────────────────────────────────────
@@ -177,24 +173,77 @@ class MatcherEngine:
 # ────────────────────────────────────────────────
 
 class FindingFactory:
-    """Converts a matched Rule into a Finding and submits it to the reporter."""
+    """
+    Converts a matched Rule into a structured Finding with rich evidence metadata
+    and submits it to the reporter.
+
+    Evidence structure produced:
+      {
+        "source": "rule_engine",
+        "detection_type": "blackbox",
+        "rule_id": "CVE-2025-29927",
+        "matched_conditions": [...],
+        "request": { "method", "path", "headers" },
+        "response": { "status", "matched_headers", "body_snippet" }
+      }
+    """
 
     def create(
         self,
         rule: Rule,
-        request_raw: str,
-        response_raw: str,
+        req_spec_method: str,
+        req_spec_path: str,
+        req_spec_headers: Dict[str, str],
+        response: Any,
         matched_evidence: List[str],
         reporter: Any,
     ) -> None:
         from nextsploit.services.reporter import Finding
+
+        # Build structured request snapshot
+        req_headers_str = "\n".join(f"{k}: {v}" for k, v in req_spec_headers.items())
+        request_raw = f"{req_spec_method} {req_spec_path} HTTP/1.1\n{req_headers_str}"
+
+        # Build structured response snapshot
+        resp_headers_str = "\n".join(f"{k}: {v}" for k, v in response.headers.items())
+        response_raw = (
+            f"HTTP/1.1 {response.status_code} {response.reason}\n"
+            f"{resp_headers_str}\n\n"
+            f"{response.text[:1500]}"
+        )
+
+        # Identify which response headers were specifically matched
+        matched_header_names = [
+            cond.split("[")[0]  # "header[exists=x-middleware-next]=PASS" → "header"
+            for cond in matched_evidence if cond.startswith("header")
+        ]
+
+        evidence_dict = {
+            "source": "rule_engine",
+            "detection_type": "blackbox",
+            "rule_id": rule.id,
+            "matched_conditions": matched_evidence,
+            "request": {
+                "method": req_spec_method,
+                "path": req_spec_path,
+                "headers": req_spec_headers,
+            },
+            "response": {
+                "status": response.status_code,
+                "matched_headers": [
+                    f"{k}: {v}" for k, v in response.headers.items()
+                    if any(h in k.lower() for h in ["middleware", "next", "forwarded"])
+                ],
+                "body_snippet": response.text[:300] if response.text else "",
+            },
+        }
 
         finding = Finding(
             id=rule.id,
             title=rule.name,
             severity=rule.severity,
             confidence=rule.confidence,
-            evidence={"matched_conditions": matched_evidence, "source": "rule_engine"},
+            evidence=evidence_dict,
             cve=rule.cve,
             cwe=rule.cwe,
             owasp=rule.owasp,
@@ -203,17 +252,17 @@ class FindingFactory:
             response_raw=response_raw,
         )
 
-        # Add CVE references to timeline
+        # Add references to timeline
         if rule.references:
             finding.add_timeline_event(
                 "RULE_ENGINE", "INFO",
-                f"CVE references: {', '.join(rule.references)}"
+                f"References: {', '.join(rule.references)}"
             )
 
         reporter.add_finding(finding)
         log_info(
             f"[bold red]RULE MATCH[/bold red]: {rule.id} — {rule.name} "
-            f"(severity={rule.severity}, confidence={rule.confidence})"
+            f"(severity={rule.severity}, confidence={rule.confidence}, path={req_spec_path})"
         )
 
 
@@ -223,11 +272,11 @@ class FindingFactory:
 
 class RuleRunner:
     """
-    Orchestrates the full rule execution pipeline for a single ScanContext:
-      1. Resolve template variables per rule request.
-      2. Send HTTP request via the context's ResourceManagerSession.
-      3. Run MatcherEngine against the response.
-      4. On match, call FindingFactory to create and register a Finding.
+    Full rule execution for a ScanContext:
+      1. Resolve template variables per request spec.
+      2. For each path in paths[] (or single path), send the HTTP request.
+      3. Run MatcherEngine — stop on first match per rule (flag-and-continue).
+      4. On match, call FindingFactory.
     Emits RULE_MATCHED / RULE_SKIPPED events to the EventBus.
     """
 
@@ -239,15 +288,13 @@ class RuleRunner:
 
     def execute(self, rules: List[Rule]) -> Dict[str, int]:
         """
-        Executes all eligible rules and returns execution statistics.
-        Returns: {"matched": int, "executed": int, "errors": int}
+        Executes all eligible rules. Returns execution statistics.
         """
         stats = {"matched": 0, "executed": 0, "errors": 0}
         resolver = TemplateResolver(self._context)
         session = self._context.session
         target_url = self._context.target_url.rstrip("/")
 
-        # Resolve event bus from container if available
         event_bus = None
         try:
             from nextsploit.core.container import container
@@ -258,71 +305,72 @@ class RuleRunner:
         from nextsploit.core.constants import Events
 
         for rule in rules:
+            rule_matched = False
             log_debug(f"Rule Engine: executing rule '{rule.id}'...")
 
             for req_spec in rule.requests:
-                stats["executed"] += 1
+                if rule_matched:
+                    break  # One match per rule is sufficient
 
-                # Resolve template variables
-                resolved_path = resolver.resolve(req_spec.path)
+                # Determine paths to probe
+                if req_spec.paths:
+                    # Multi-path probing: resolve template variables in each path
+                    probe_paths = [resolver.resolve(p) for p in req_spec.paths]
+                else:
+                    probe_paths = [resolver.resolve(req_spec.path)]
+
                 resolved_headers = resolver.resolve_dict(req_spec.headers)
                 resolved_body = resolver.resolve(req_spec.body or "")
 
-                url = target_url + resolved_path
-                request_raw = (
-                    f"{req_spec.method} {resolved_path} HTTP/1.1\n"
-                    + "\n".join(f"{k}: {v}" for k, v in resolved_headers.items())
-                    + ("\n\n" + resolved_body if resolved_body else "")
-                )
+                for probe_path in probe_paths:
+                    if rule_matched:
+                        break
+                    stats["executed"] += 1
+                    url = target_url + probe_path
 
-                try:
-                    start = time.monotonic()
-                    response = session.request(
-                        method=req_spec.method,
-                        url=url,
-                        headers=resolved_headers,
-                        data=resolved_body or None,
-                        timeout=req_spec.timeout,
-                    )
-                    duration = time.monotonic() - start
-
-                    # Build response raw snapshot
-                    resp_headers_str = "\n".join(
-                        f"{k}: {v}" for k, v in response.headers.items()
-                    )
-                    response_raw = (
-                        f"HTTP/1.1 {response.status_code} {response.reason}\n"
-                        f"{resp_headers_str}\n\n"
-                        f"{response.text[:2000]}"
-                    )
-
-                    # Evaluate match conditions
-                    matched, evidence = self._matcher.evaluate(response, rule.match)
-
-                    if matched:
-                        stats["matched"] += 1
-                        self._factory.create(
-                            rule=rule,
-                            request_raw=request_raw,
-                            response_raw=response_raw,
-                            matched_evidence=evidence,
-                            reporter=self._reporter,
+                    try:
+                        start = time.monotonic()
+                        response = session.request(
+                            method=req_spec.method,
+                            url=url,
+                            headers=resolved_headers,
+                            data=resolved_body or None,
+                            timeout=req_spec.timeout,
+                            allow_redirects=False,  # Don't follow; detect redirects directly
                         )
-                        if event_bus:
-                            event_bus.publish(Events.RULE_MATCHED, {
-                                "rule_id": rule.id,
-                                "duration": duration,
-                                "severity": rule.severity,
-                            })
-                    else:
-                        if event_bus:
-                            event_bus.publish(Events.RULE_SKIPPED, {
-                                "rule_id": rule.id,
-                                "reason": "conditions_not_met",
-                            })
+                        duration = time.monotonic() - start
 
-                except Exception as e:
-                    stats["errors"] += 1
-                    log_warning(f"Rule '{rule.id}' request to '{url}' failed: {e}")
+                        matched, evidence = self._matcher.evaluate(response, rule.match)
+
+                        if matched:
+                            stats["matched"] += 1
+                            rule_matched = True
+                            self._factory.create(
+                                rule=rule,
+                                req_spec_method=req_spec.method,
+                                req_spec_path=probe_path,
+                                req_spec_headers=resolved_headers,
+                                response=response,
+                                matched_evidence=evidence,
+                                reporter=self._reporter,
+                            )
+                            if event_bus:
+                                event_bus.publish(Events.RULE_MATCHED, {
+                                    "rule_id": rule.id,
+                                    "duration": duration,
+                                    "severity": rule.severity,
+                                    "path": probe_path,
+                                })
+                        else:
+                            if event_bus:
+                                event_bus.publish(Events.RULE_SKIPPED, {
+                                    "rule_id": rule.id,
+                                    "reason": "conditions_not_met",
+                                    "path": probe_path,
+                                })
+
+                    except Exception as e:
+                        stats["errors"] += 1
+                        log_warning(f"Rule '{rule.id}' request to '{url}': {e}")
 
         return stats

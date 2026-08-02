@@ -23,6 +23,23 @@ class HeaderMatcher:
             header_name = str(condition.value).lower()
             return header_name not in headers_lower
 
+        elif condition.operator == "regex":
+            # value is the header name; checks any header value matching the pattern
+            # OR value is a dict {"name": ..., "pattern": ...} for specific header
+            import re
+            if isinstance(condition.value, dict):
+                name = str(condition.value.get("name", "")).lower()
+                pattern = str(condition.value.get("pattern", ""))
+                target_val = headers_lower.get(name, "")
+            else:
+                # Check all header values against the pattern
+                pattern = str(condition.value)
+                target_val = " ".join(headers_lower.values())
+            try:
+                return bool(re.search(pattern, target_val, re.IGNORECASE))
+            except re.error:
+                return False
+
         elif condition.operator in ("equals", "contains"):
             # value should be {"name": "header-name", "value": "expected-value"}
             if not isinstance(condition.value, dict):

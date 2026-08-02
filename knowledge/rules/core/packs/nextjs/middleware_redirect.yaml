@@ -1,0 +1,59 @@
+id: next.middleware.redirect
+name: "Next.js Middleware Open Redirect"
+version: "1.0"
+
+metadata:
+  author: "NextSploit Team"
+  created: "2026-08-02"
+  tags:
+    - nextjs
+    - middleware
+    - open-redirect
+    - high
+
+target:
+  technology:
+    - nextjs
+  version: "*"
+  requires:
+    - middleware
+
+severity: high
+confidence: 0.80
+cve: ""
+cwe: "CWE-601"
+owasp: "A03:2021"
+references:
+  - "https://cwe.mitre.org/data/definitions/601.html"
+
+requests:
+  - method: GET
+    # Probe common redirect parameter patterns
+    paths:
+      - "/redirect?next=https://evil.example.com/phishing"
+      - "/login?redirect=https://evil.example.com/phishing"
+      - "/auth/callback?return_to=https://evil.example.com/phishing"
+      - "/?next=https://evil.example.com/phishing"
+    headers:
+      accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+      user-agent: "Mozilla/5.0 (NextSploit Security Auditor)"
+
+match:
+  all:
+    # A redirect response
+    - type: status
+      operator: equals
+      value: 302
+    # Location header points to an external (non-target) domain
+    - type: regex
+      operator: regex
+      location: "header:location"
+      value: "https?://evil\\.example\\.com"
+
+remediation: |
+  Validate and allowlist redirect URLs in middleware. Do not blindly redirect to
+  any user-supplied URL. Implement the following defenses:
+  1. Check that the redirect target matches an allowlist of trusted domains.
+  2. Use relative URLs for internal redirects instead of absolute URLs.
+  3. Reject or sanitize any redirect parameter that starts with 'http://' or 'https://'.
+  4. Log and alert on redirect attempts to non-allowlisted external domains.

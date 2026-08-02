@@ -39,10 +39,20 @@ class TemplateResolver:
         variables = dict(_BUILTIN_VARIABLES)
 
         if profile:
+            discovered = getattr(profile, "discovered_paths", []) or []
+            # First discovered path that looks protected, else fallback
+            protected = next(
+                (p for p in discovered if any(
+                    kw in p for kw in ("/dashboard", "/admin", "/profile", "/settings")
+                )),
+                discovered[0] if discovered else "/dashboard"
+            )
             variables.update({
                 "target.host": getattr(profile, "hostname", "") or "",
                 "target.ip": getattr(profile, "ip", "") or "",
                 "target.version": getattr(profile, "framework_version", "") or "",
+                "target.protected_path": protected,
+                "target.discovered_paths": ",".join(discovered) if discovered else "/dashboard,/admin,/api",
             })
 
         variables["target.url"] = getattr(self._context, "target_url", "") or ""

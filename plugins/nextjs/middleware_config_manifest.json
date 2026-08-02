@@ -1,0 +1,16 @@
+{
+  "manifest_version": "1.0",
+  "id": "next.middleware.config",
+  "name": "Middleware Configuration Auditor",
+  "version": "1.0.0",
+  "sdk_version": ">=4.0,<5.0",
+  "author": "NextSploit Team",
+  "description": "Black-box analysis of Next.js middleware configuration. Probes /_next/server/middleware-manifest.json and response patterns to detect overly broad matchers, missing auth, and dangerous rewrites.",
+  "license": "MIT",
+  "entry": "middleware_config.py:MiddlewareConfigPlugin",
+  "phase": "passive",
+  "severity": "medium",
+  "requires": ["middleware"],
+  "policies": ["safe", "bugbounty", "pentest", "ci"],
+  "tags": ["nextjs", "middleware", "configuration", "passive"]
+}

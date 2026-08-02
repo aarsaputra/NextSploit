@@ -14,7 +14,10 @@ from pydantic import BaseModel, Field, field_validator
 class HTTPRequestSpec(BaseModel):
     """Describes a single HTTP request to be sent during rule execution."""
     method: str = "GET"
-    path: str
+    path: str = "/"
+    # Multi-path probing: when set, RuleRunner tries each path independently.
+    # Useful for rules that probe common protected routes (/dashboard, /admin, etc.).
+    paths: List[str] = Field(default_factory=list)
     headers: Dict[str, str] = Field(default_factory=dict)
     body: Optional[str] = None
     timeout: int = 10
