@@ -109,5 +109,71 @@ MODULE_REGISTRY = {
         "module": "modules.cve_45109",
         "function": "scan",
     },
+    "64645": {
+        "name": "CVE-2026-64645",
+        "title": "SSRF via rewrites()/redirects() Hostname Injection",
+        "module": "modules.cve_64645",
+        "function": "scan",
+    },
+    "64642": {
+        "name": "CVE-2026-64642",
+        "title": "Middleware Bypass via App Router + Turbopack + Single Locale",
+        "module": "modules.cve_64642",
+        "function": "scan",
+    },
+    "64641": {
+        "name": "CVE-2026-64641",
+        "title": "DoS App Router via Server Actions CPU Exhaustion",
+        "module": "modules.cve_64641",
+        "function": "scan",
+    },
+    "64649": {
+        "name": "CVE-2026-64649",
+        "title": "SSRF Server Actions via Host Header (Custom Node.js Server)",
+        "module": "modules.cve_64649",
+        "function": "scan",
+    },
+    "44573": {
+        "name": "CVE-2026-44573",
+        "title": "Pages Router i18n Data-Route Middleware Bypass",
+        "module": "modules.cve_44573",
+        "function": "scan",
+    },
+    "44578": {
+        "name": "CVE-2026-44578",
+        "title": "WebSocket Upgrade SSRF (Self-Hosted, 16.x only)",
+        "module": "modules.cve_44578",
+        "function": "scan",
+    },
+    "64643": {
+        "name": "CVE-2026-64643",
+        "title": "Server Action / use cache Endpoint ID Leak",
+        "module": "modules.cve_64643",
+        "function": "scan",
+    },
+    "64644": {
+        "name": "CVE-2026-64644",
+        "title": "DoS Image Optimization API via SVG",
+        "module": "modules.cve_64644",
+        "function": "scan",
+    },
+    "64646": {
+        "name": "CVE-2026-64646",
+        "title": "Unbounded SA Payload Edge Runtime Memory Exhaustion",
+        "module": "modules.cve_64646",
+        "function": "scan",
+    },
+    "64648": {
+        "name": "CVE-2026-64648",
+        "title": "Cache Confusion via fetch() Response Body Mismatch",
+        "module": "modules.cve_64648",
+        "function": "scan",
+    },
+    "64647": {
+        "name": "CVE-2026-64647",
+        "title": "Cache Confusion via Invalid UTF-8 Request Body",
+        "module": "modules.cve_64647",
+        "function": "scan",
+    },
 }
 
