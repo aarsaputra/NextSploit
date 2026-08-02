@@ -2,32 +2,21 @@
 
 **NextSploit** is a modular, high-accuracy command-line penetration testing automation framework specifically designed to scan, detect, and analyze critical vulnerabilities in **Next.js** web applications. 
 
-This framework builds upon the original concept of **[AnonKryptiQuz/NextSploit](https://github.com/AnonKryptiQuz/NextSploit)**. While the original focused specifically on CVE-2025-29927, **NextSploit v2.3.0** by **aarsaputra** (Original Author: **AnonKryptiQuz**) expands into a comprehensive Next.js auditing engine with 29 multi-vulnerability capabilities (RCE, SSRF, Request Smuggling, DoS, Cache Poisoning, Authorization Bypass, and Source Exposure), thread-safe version signal aggregation, rate limiting, active/passive mode safety flags, and multi-branch version bounds (Next.js 13.x - 16.x).
+This framework builds upon the original concept of **[AnonKryptiQuz/NextSploit](https://github.com/AnonKryptiQuz/NextSploit)**. While the original focused specifically on CVE-2025-29927, **NextSploit v2.3.0** by **aarsaputra** (Original Author: **AnonKryptiQuz**) expands into a comprehensive Next.js auditing engine with 29 multi-vulnerability scanner modules (RCE, SSRF, Request Smuggling, DoS, Cache Poisoning, Authorization Bypass, and Source Exposure), thread-safe version signal aggregation, rate limiting, active/passive mode safety flags, and multi-branch version bounds (Next.js 13.x - 16.x).
 
 
 ---
 
 ## 🚀 **Features**
 
-- **🔍 Automated Next.js Version & Build ID Detection**: Passively and active fingerprinters crawl Next.js assets to fetch actual Build IDs and active Server Action IDs.
-- **�️ Improved Scanner Stability**: Enhanced exception handling and trace logging across production scan modules for more reliable diagnostics.
-- **�🛡️ Multi-CVE Vulnerability Assessment**:
-  - **CVE-2025-29927 (Middleware Auth Bypass)**: Detects and visualizes middleware authentication bypasses.
-  - **CVE-2025-66478 (React2Shell RCE)**: Assesses server-side React Server Components (RSC) Flight Protocol deserialization bugs.
-  - **CVE-2024-34351 (Server Action SSRF)**: Validates outbound redirections via Host Header manipulation.
-  - **CVE-2024-46982 (Cache Poisoning / Stored XSS)**: Tests for fallback Route Matches cache injections.
-  - **CVE-2024-56332 (Pathname Middleware Bypass)**: Evaluates auth controls against traversal and URL-encoded variants.
-  - **CVE-2025-48068 (Dev Server Source Exposure)**: Identifies development bundle exposures using spoofed origins.
-  - **CVE-2024-34350 (HTTP Request Smuggling)**: Analyzes targets for HTTP Smuggling and Response Queue Poisoning.
-  - **CVE-2025-59471 (Image Optimizer DoS)**: Checks for unauthenticated dynamic OOM Denial of Service API flags.
-  - **CVE-2026-23870 (RSC Deserialization DoS)**: Assesses Server Function routes against DoS deserialization exploits.
-  - **CVE-2026-44575 (Middleware Bypass via Segment-Prefetch)**: Detects middleware bypass via `.rsc` / `.prefetch.rsc` route variants. Affects Next.js 15.2.0–15.5.15. Fix: 15.5.16.
-  - **CVE-2026-23864 (RSC Memory Exhaustion DoS)**: Probes for OOM crash via FormData `$K` token amplification in React Flight protocol. CVSS 7.5. Affects 15.5.0–15.5.9. Fix: 15.5.10.
-  - **GHSA-mg66-mrh9-m8jx (PPR/Cache Components Deadlock DoS)**: Detects connection-pool deadlock triggered by `Next-Resume: 1` header on PPR-enabled apps. Fix: 15.5.16.
-  - **CVE-2026-45109 (Middleware Bypass via Turbopack)**: Incomplete fix follow-up to CVE-2026-44575. Affects Turbopack builds on 15.5.16–15.5.17. Fix: 15.5.18.
-- **⚖️ FP Reduction & Confidence Scoring**: Introduces baseline hashing, filtering out static script differences, and rates findings on a `0.0` - `1.0` confidence scale.
-- **🌐 Automated Chrome Browser Chaining**: Integrates AnonKryptiQuz's Chrome Browser Exploit Engine to automatically launch a Selenium-controlled Chrome window with preconfigured bypass headers.
-- **📡 Multiformat Reporting & Self-Update**: Renders findings immediately, supports dynamic update checking using GitHub API, and self-updates using `--update`.
+- **🔍 Automated Next.js Version & Build ID Detection**: Centralized `VersionState` aggregator crawls Next.js assets to fetch actual Build IDs, active Server Action IDs, and version signals across headers, build IDs, chunk bundles, and error leaks.
+- **🛡️ Multi-CVE Vulnerability Assessment (29 Modules)**:
+  - **Batch #1 (Mei 2026)**: CVE-2026-44573 (Pages i18n Bypass), CVE-2026-44578 (WebSocket SSRF), GHSA-mg66-mrh9-m8jx (PPR Deadlock DoS).
+  - **Batch #2 (Juli 2026)**: CVE-2026-64641 (DoS SA CPU Exhaustion), CVE-2026-64642 (Middleware Bypass Turbopack+i18n), CVE-2026-64645 (SSRF Rewrites/Redirects), CVE-2026-64649 (SSRF SA Host Header), CVE-2026-64644 (DoS SVG Image API), CVE-2026-64646 (Edge SA Unbounded Payload), CVE-2026-64643 (SA Action ID Leak), CVE-2026-64648 (Fetch Cache Confusion), CVE-2026-64647 (Invalid UTF-8 Cache Confusion).
+- **🔒 Active / Passive Mode Safety**: Potentially intrusive modules (OOB SSRF, shared cache differential tests) run in **passive mode by default**. Active execution requires explicit `--confirm-active` opt-in.
+- **⚡ Rate Limiting & Delay**: Built-in `--rate-limit` (req/sec) and `--delay` (seconds between requests) to prevent target overloading and evade WAF throttling.
+- **⚖️ FP Reduction & Confidence Scoring**: Precondition helpers (`has_app_router()`, `has_active_server_actions()`) skip non-applicable targets with `NOT_APPLICABLE` or `INCONCLUSIVE` statuses.
+- **🌐 Automated Chrome Browser Chaining**: Integrates AnonKryptiQuz's Chrome Browser Exploit Engine to launch a Selenium-controlled Chrome window with preconfigured bypass headers.
 
 
 ---
@@ -52,11 +41,10 @@ To run NextSploit and use its browser exploit chaining features, you need:
    ```
 
 2. **Install required packages:**
-   NextSploit features a virtual environment fallback. You can set it up inside your preferred virtual environment:
    ```bash
    pip install -r requirements.txt
    ```
-   *If `requirements.txt` is missing, install the dependencies manually:*
+   *If `requirements.txt` is missing, install dependencies manually:*
    ```bash
    pip install requests rich urllib3 selenium prompt_toolkit colorama
    ```
@@ -84,12 +72,15 @@ python nextsploit.py -t <TARGET_URL> [options]
 | :--- | :--- | :--- | :--- |
 | `-t` | `--target` | Target URL of the Next.js app (Required, except for `--list-modules`) | `-t https://target.com` |
 | `--fingerprint` | *None* | Runs fingerprinting probes only (version, Build ID, Action IDs) | `--fingerprint` |
-| `--cve` | *None* | Executes specific scan modules by ID (comma-separated list) | `--cve 29927,46982` |
+| `--cve` | *None* | Executes specific scan modules by ID (comma-separated list) | `--cve 64645,64642,29927` |
 | `--all` | *None* | Runs all registered scanning modules | `--all` |
-| `-o` | `--output` | Saves the report (automatically infers format: `.json`, `.html`, `.txt`) | `-o reports/scan.html` |
+| `--confirm-active` | *None* | **Opt-in flag** allowing modules to touch external hosts (OOB SSRF) or modify shared cache | `--all --confirm-active` |
+| `--delay` | *None* | Delay in seconds between outbound HTTP requests (float/int) | `--delay 0.5` |
+| `--rate-limit` | *None* | Maximum outbound requests per second (0 = unlimited) | `--rate-limit 5` |
+| `-o` | `--output` | Saves the report (`.json`, `.html`, `.txt`) | `-o reports/scan.html` |
 | `-v` | *None* | Verbose mode (displays rich analytical debugging logs) | `-v` |
 | `-vv` | *None* | Extra Verbose mode (prints entire HTTP payloads and stack trace outputs) | `-vv` |
-| `--browser` | *None* | **[AnonKryptiQuz integration]** Automatically opens Chrome with bypass headers injected via Selenium CDP for live visual validation. | `--cve 29927 --browser` |
+| `--browser` | *None* | **[AnonKryptiQuz integration]** Automatically opens Chrome with bypass headers via Selenium CDP | `--cve 29927 --browser` |
 | `--list-modules`| *None* | Renders a table of all registered scanning modules | `--list-modules` |
 
 ### **Examples**
@@ -99,9 +90,9 @@ python nextsploit.py -t <TARGET_URL> [options]
    python nextsploit.py --list-modules
    ```
 
-2. **Perform deep scan on a target with HTML output:**
+2. **Perform deep scan on a target with active checks enabled & HTML output:**
    ```bash
-   python nextsploit.py -t https://target.com --all -o reports/scan.html
+   python nextsploit.py -t https://target.com --all --confirm-active --delay 0.2 -o reports/scan.html
    ```
 
 3. **Chain CVE-2025-29927 scan into Chrome browser visual exploitation:**
@@ -117,14 +108,15 @@ python nextsploit.py -t <TARGET_URL> [options]
 NextSploit/
 ├── nextsploit.py            # CLI Entrypoint & scan orchestrator
 ├── core/
-│   ├── config.py            # Shared ScanConfig, HTTP session & save_response helper
+│   ├── config.py            # Shared ScanConfig, HTTP session, CVE_DATABASE & save_response helper
 │   ├── output.py            # Rich logging & console formatting functions
 │   ├── reporter.py          # Domain extractor (get_domain) & Report exporter (JSON, HTML, TXT)
-│   ├── version.py           # Application version constants
+│   ├── version.py           # Application version constants (v2.3.0)
+│   ├── version_state.py     # Centralized thread-safe version signal aggregator
 │   ├── banner.py            # Custom ASCII Banner module
 │   └── updater.py           # Dynamic release checker & update routine
 ├── modules/
-│   ├── __init__.py          # Module registry and function mapping
+│   ├── __init__.py          # Module registry and function mapping (29 Modules)
 │   ├── fingerprint.py       # Tech stack identification & build asset crawler
 │   ├── cve_29927.py         # Middleware Auth Bypass + Browser Exploit Chain
 │   ├── cve_34351.py         # Server Action Host-Header SSRF validator
@@ -139,161 +131,71 @@ NextSploit/
 │   ├── cve_44575.py         # Middleware Bypass via Segment-Prefetch (.rsc)
 │   ├── cve_23864.py         # RSC Memory Exhaustion DoS via FormData $K tokens
 │   ├── ghsa_mg66.py         # PPR/Cache Components Deadlock DoS
-│   └── cve_45109.py         # Middleware Bypass via Turbopack (incomplete fix)
+│   ├── cve_45109.py         # Middleware Bypass via Turbopack (incomplete fix)
+│   ├── cve_64645.py         # SSRF via rewrites()/redirects() Hostname Injection
+│   ├── cve_64642.py         # Middleware Bypass via App Router + Turbopack + Single Locale
+│   ├── cve_64641.py         # DoS App Router via Server Actions CPU Exhaustion
+│   ├── cve_64649.py         # SSRF Server Actions via Host Header (Custom Server)
+│   ├── cve_44573.py         # Pages Router i18n Data-Route Middleware Bypass
+│   ├── cve_44578.py         # WebSocket Upgrade SSRF (Self-Hosted, 16.x only)
+│   ├── cve_64643.py         # Server Action / use cache Endpoint ID Leak
+│   ├── cve_64644.py         # DoS Image Optimization API via SVG
+│   ├── cve_64646.py         # Unbounded SA Payload Edge Runtime Memory Exhaustion
+│   ├── cve_64648.py         # Cache Confusion via fetch() Response Body Mismatch
+│   └── cve_64647.py         # Cache Confusion via Invalid UTF-8 Request Body
 └── reports/
     └── <domain>/            # Target-isolated report storage (JSON reports & HTTP response artifacts)
 ```
 
-### 📋 **Workflow & Scanner Pipeline:**
-1. **Target & Domain Normalization**: `nextsploit.py` normalizes the target URL and extracts the target domain via `reporter.get_domain(target)`.
-2. **Target-Based Directory Isolation**: Configures `config.output_dir = "reports/<domain>/"` to keep all scan artifacts organized per target and prevent clutter.
-3. **Mandatory Fingerprinting**: Crawls static assets (`/_next/static/`) to detect Next.js version, Build ID, and active Server Action IDs.
-4. **Context Propagation**: Instantiates a unified `ScanConfig` object carrying target settings, output paths, and `save_response()` evidence handlers for module access.
-5. **Baseline & False Positive Reduction Engine**: Scanner modules establish baseline HTTP responses before executing header/payload injections, verifying status codes, content-types, and filtering out dynamic HTML variations to eliminate false positives.
-6. **Evidence Capture & Reporting**: HTTP responses triggered by potential vulnerabilities are captured via `config.save_response()` into raw `.txt` artifacts, while final structured summary logs are saved to `reports/<domain>/scan_<domain>_<timestamp>.json`.
-
 ---
 
-## 💻 **Programmer's Extension & Customization Guide**
+## 🧪 **Available Scanning Modules (29 Modules)**
 
-NextSploit is designed to easily accommodate new CVE modules. Follow these steps to contribute a new vulnerability scan module:
-
-### **1. Update the Database**
-Add your target CVE metadata to the `CVE_DATABASE` dictionary in [core/config.py](core/config.py):
-```python
-"CVE-202X-XXXX": {
-    "id": "CVE-202X-XXXX",
-    "short": "XXXXX",
-    "title": "Vulnerability title",
-    "type": "RCE / SSRF / Auth Bypass / Info Disclosure",
-    "severity": "CRITICAL / HIGH / MEDIUM / LOW",
-    "fix_version": "15.x.x",
-    "description": "Provide a descriptive summary of the flaw.",
-    "references": ["https://nvd.nist.gov/vuln/detail/CVE-202X-XXXX"]
-}
-```
-
-### **2. Register in Registry**
-Open [modules/__init__.py](modules/__init__.py) and add a key mapping:
-```python
-"XXXXX": {
-    "name": "CVE-202X-XXXX",
-    "title": "Short Title",
-    "module": "modules.cve_xxxx", # Matches your module filename
-    "function": "scan",           # Module main function
-}
-```
-
-### **3. Implement the Exploit Logic (`modules/cve_xxxx.py`)**
-Use this template to build your scan module:
-```python
-#!/usr/bin/env python3
-"""
-NextSploit — CVE-202X-XXXX: Module Implementation
-"""
-
-import requests
-from core.config import ScanConfig, CVE_DATABASE
-from core.reporter import ModuleResult, Finding
-from core.output import log_info, log_success, log_warning, print_finding
-
-CVE_ID = "CVE-202X-XXXX"
-CVE_INFO = CVE_DATABASE[CVE_ID]
-
-def scan(config: ScanConfig) -> ModuleResult:
-    result = ModuleResult(
-        cve=CVE_ID,
-        title=CVE_INFO["title"],
-        severity=CVE_INFO["severity"],
-        status="NOT VULNERABLE"
-    )
-    
-    session = config.create_session()
-    target = config.target.rstrip("/")
-    
-    log_info(f"Starting {CVE_ID} scan...")
-    
-    # You can access properties discovered globally:
-    # build_id = config.discovered_build_id
-    
-    try:
-        url = f"{target}/specific-vulnerable-endpoint"
-        r = session.get(url, timeout=config.timeout)
-        
-        if r.status_code == 200 and "exploit_indicator" in r.text:
-            detail = f"Target exposed vulnerability at {url}"
-            log_warning(detail)
-            
-            evidence = {
-                "url": url,
-                "response_indicator": "exploit_indicator"
-            }
-            
-            print_finding(CVE_ID, detail, evidence)
-            
-            result.add_finding(Finding(
-                cve=CVE_ID,
-                severity=CVE_INFO["severity"],
-                title="Vulnerability Confirmed",
-                status="VULNERABLE",
-                detail=detail,
-                evidence=evidence,
-                confidence=0.9 # Set a baseline confidence score (0.0 - 1.0)
-            ))
-            
-    except requests.RequestException as e:
-        result.error = str(e)
-        
-    return result
-```
-
----
-
-## 🧪 **Available Scanning Modules (Full List)**
-
-Berikut adalah daftar lengkap 18 modul pemindaian CVE & teknik audit yang tersedia di NextSploit:
-
-| Module CLI Key (`--cve`) | CVE / ID | Vulnerability Type | Severity | Affected / Fix Version |
+| Module CLI Key (`--cve`) | CVE / ID | Vulnerability Type | Severity | Fix Version (15.x / 16.x) |
 |:---:|:---|:---|:---:|:---:|
-| `29927` | CVE-2025-29927 | Middleware Auth Bypass | CRITICAL | Fix: 14.2.25 |
-| `66478` | CVE-2025-66478 | React2Shell RCE via RSC Flight | CRITICAL | Fix: 15.0.5 |
-| `57822` | CVE-2025-57822 | SSRF via HTTP Headers | HIGH | Fix: 14.2.32 |
-| `34351` | CVE-2024-34351 | SSRF via Server Action Host | HIGH | Fix: 14.1.1 |
-| `55183` | CVE-2025-55183 | Source Code Exposure | MEDIUM | Fix: 14.2.35 |
-| `55184` | CVE-2025-55184 | DoS Detection (Passive) | HIGH | Fix: 14.2.35 |
-| `46982` | CVE-2024-46982 | Cache Poisoning / Stored XSS | HIGH | Fix: 14.2.10 |
-| `56332` | CVE-2024-56332 | Pathname Middleware Bypass | HIGH | Fix: 14.2.25 |
-| `48068` | CVE-2025-48068 | Dev Server Source Exposure | MEDIUM | Fix: 15.2.2 |
-| `34350` | CVE-2024-34350 | HTTP Request Smuggling | HIGH | Fix: 13.5.1 |
-| `59471` | CVE-2025-59471 | Image Optimizer DoS Check | MEDIUM | Fix: 15.5.10 |
-| `23870` | CVE-2026-23870 | DoS via RSC Deserialization | HIGH | Fix: 15.5.16 |
-| `67779` | CVE-2025-67779 | DoS via Infinite Promise Loop | HIGH | Fix: 15.5.9 |
-| `44575` | CVE-2026-44575 | Middleware Bypass (.rsc / prefetch) | HIGH | Fix: 15.5.16 |
-| `23864` | CVE-2026-23864 | DoS RSC Memory Exhaustion ($K) | HIGH | Fix: 15.5.10 |
-| `mg66`  | GHSA-mg66-mrh9-m8jx | DoS PPR/Cache Deadlock | HIGH | Fix: 15.5.16 |
-| `45109` | CVE-2026-45109 | Middleware Bypass via Turbopack | HIGH | Fix: 15.5.18 |
+| `64645` | CVE-2026-64645 | SSRF via rewrites()/redirects() Hostname Injection | HIGH | 15.5.21 / 16.2.11 |
+| `64642` | CVE-2026-64642 | Middleware Bypass — Turbopack + Single Locale | HIGH | 15.5.21 / 16.2.11 |
+| `64641` | CVE-2026-64641 | DoS App Router via Server Actions CPU Exhaustion | HIGH | 15.5.21 / 16.2.11 |
+| `64649` | CVE-2026-64649 | SSRF Server Actions Host Header (Custom Server) | HIGH | 15.5.21 / 16.2.11 |
+| `44573` | CVE-2026-44573 | Pages Router i18n Data-Route Middleware Bypass | HIGH | 15.5.16 / 16.2.5 |
+| `44578` | CVE-2026-44578 | WebSocket Upgrade SSRF (Self-Hosted, 16.x only) | HIGH | 16.2.5 (16.x only) |
+| `64643` | CVE-2026-64643 | Server Action / use cache Endpoint ID Leak | MEDIUM | 15.5.21 / 16.2.11 |
+| `64644` | CVE-2026-64644 | DoS Image Optimization API via SVG | MEDIUM | 15.5.21 / 16.2.11 |
+| `64646` | CVE-2026-64646 | Unbounded SA Payload Edge Runtime Memory Exh. | MEDIUM | 15.5.21 / 16.2.11 |
+| `64648` | CVE-2026-64648 | Cache Confusion — fetch() Response Body Mismatch | MEDIUM | 15.5.21 / 16.2.11 |
+| `64647` | CVE-2026-64647 | Cache Confusion — Invalid UTF-8 Request Body | MEDIUM | 15.5.21 / 16.2.11 |
+| `29927` | CVE-2025-29927 | Middleware Auth Bypass | CRITICAL | 14.2.25 |
+| `66478` | CVE-2025-66478 | React2Shell RCE via RSC Flight | CRITICAL | 15.0.5 |
+| `57822` | CVE-2025-57822 | SSRF via HTTP Headers | HIGH | 14.2.32 |
+| `34351` | CVE-2024-34351 | SSRF via Server Action Host | HIGH | 14.1.1 |
+| `55183` | CVE-2025-55183 | Source Code Exposure | MEDIUM | 14.2.35 |
+| `55184` | CVE-2025-55184 | DoS Detection (Passive) | HIGH | 14.2.35 |
+| `46982` | CVE-2024-46982 | Cache Poisoning / Stored XSS | HIGH | 14.2.10 |
+| `56332` | CVE-2024-56332 | Pathname Middleware Bypass | HIGH | 14.2.25 |
+| `48068` | CVE-2025-48068 | Dev Server Source Exposure | MEDIUM | 15.2.2 |
+| `34350` | CVE-2024-34350 | HTTP Request Smuggling | HIGH | 13.5.1 |
+| `59471` | CVE-2025-59471 | Image Optimizer DoS Check | MEDIUM | 15.5.10 |
+| `23870` | CVE-2026-23870 | DoS via RSC Deserialization | HIGH | 15.5.16 |
+| `67779` | CVE-2025-67779 | DoS via Infinite Promise Loop | HIGH | 15.5.9 |
+| `44575` | CVE-2026-44575 | Middleware Bypass (.rsc / prefetch) | HIGH | 15.5.16 |
+| `23864` | CVE-2026-23864 | DoS RSC Memory Exhaustion ($K) | HIGH | 15.5.10 |
+| `mg66`  | GHSA-mg66-mrh9-m8jx | DoS PPR/Cache Components Deadlock | HIGH | 15.5.16 / 16.2.5 |
+| `45109` | CVE-2026-45109 | Middleware Bypass via Turbopack | HIGH | 15.5.18 |
 | `rsc`   | RSC-Attack | RSC Protocol & Server Actions Audit | INFO | All App Router versions |
 
 ---
 
-## 🧪 **CVE Coverage Matrix (Next.js 15.5.9)**
+## 🧪 **CVE Coverage Matrix (Latest Next.js Boundaries)**
 
-Berikut status kerentanan untuk target yang menjalankan **Next.js 15.5.9**:
-
-| Module ID | CVE / ID | Severity | Fix Version | Status di 15.5.9 |
-|:---:|:---|:---:|:---:|:---:|
-| `59471` | CVE-2025-59471 | MEDIUM | 15.5.10 | ✅ Masih Rentan |
-| `23870` | CVE-2026-23870 | HIGH | 15.5.16 | ✅ Masih Rentan |
-| `44575` | CVE-2026-44575 | HIGH | 15.5.16 | ✅ Masih Rentan |
-| `23864` | CVE-2026-23864 | HIGH | 15.5.10 | ✅ Masih Rentan |
-| `mg66` | GHSA-mg66-mrh9-m8jx | HIGH | 15.5.16 | ✅ Masih Rentan |
-| `45109` | CVE-2026-45109 | HIGH | 15.5.18 | ✅ Masih Rentan |
-
-```bash
-# Scan semua CVE yang relevan untuk Next.js 15.5.9
-python nextsploit.py -t https://target.com --cve 59471,23870,44575,23864,mg66,45109 -v
-```
-
+| Release | CVE / ID | Severity | Affected Ranges | Fixed In |
+|:---|:---|:---:|:---|:---:|
+| **July 2026** | CVE-2026-64645 | HIGH | `>= 12.0.0, < 15.5.21` \| `>= 16.0.0, < 16.2.11` | 15.5.21 / 16.2.11 |
+| **July 2026** | CVE-2026-64642 | HIGH | `>= 15.0.0, < 15.5.21` \| `>= 16.0.0, < 16.2.11` | 15.5.21 / 16.2.11 |
+| **July 2026** | CVE-2026-64641 | HIGH | `>= 15.0.0, < 15.5.21` \| `>= 16.0.0, < 16.2.11` | 15.5.21 / 16.2.11 |
+| **July 2026** | CVE-2026-64649 | HIGH | `>= 15.0.0, < 15.5.21` \| `>= 16.0.0, < 16.2.11` | 15.5.21 / 16.2.11 |
+| **May 2026** | CVE-2026-44573 | HIGH | `>= 13.0.0, < 15.5.16` \| `>= 16.0.0, < 16.2.5` | 15.5.16 / 16.2.5 |
+| **May 2026** | CVE-2026-44578 | HIGH | `>= 16.0.0, < 16.2.5` (16.x only) | 16.2.5 |
+| **May 2026** | CVE-2026-44579 (mg66) | HIGH | `>= 15.0.0, < 15.5.16` \| `>= 16.0.0, < 16.2.5` | 15.5.16 / 16.2.5 |
 
 ---
 
@@ -308,5 +210,4 @@ python nextsploit.py -t https://target.com --cve 59471,23870,44575,23864,mg66,45
 ## 🐐 **Authors & Credits**
 
 - **Original Creator**: **[AnonKryptiQuz](https://AnonKryptiQuz.github.io/)** — Author of the original NextSploit scanner and the pioneer of the browser-based Selenium CDP middleware bypass verification.
-- **Refactoring & Expansion**: **aarsaputra** — Extended into v2.2.0 with multi-CVE scanning, baseline verification, update notification mechanism, dynamic Rich banners, and a professional reporting engine.
-
+- **Refactoring & Expansion**: **aarsaputra** — Extended into v2.3.0 with 29 multi-CVE modules, centralized version state aggregator, multi-branch version bounds, active/passive safety controls, rate-limiting, and reporting engine.
