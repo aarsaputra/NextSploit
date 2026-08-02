@@ -20,8 +20,9 @@ Severity       : High
 
 import requests
 
-from core.config import ScanConfig, CVE_DATABASE, check_vuln_status
-from core.reporter import ModuleResult, Finding
+from core.config import ScanConfig
+from core.cve_database import CVE_DATABASE, check_vuln_status
+from core.reporter import ModuleResult, Finding, ScanStatus
 from core.output import log_info, log_success, log_warning, log_debug, print_finding
 
 CVE_ID   = "CVE-2026-44578"
@@ -41,7 +42,7 @@ def scan(config: ScanConfig) -> ModuleResult:
         cve=CVE_ID,
         title=CVE_INFO["title"],
         severity=CVE_INFO["severity"],
-        status="NOT VULNERABLE",
+        status=ScanStatus.SAFE,
     )
 
     log_info(f"Starting {CVE_ID} scan — WebSocket Upgrade SSRF (16.x only)...")
@@ -55,7 +56,7 @@ def scan(config: ScanConfig) -> ModuleResult:
         try:
             major = int(version_detected.split(".")[0])
             if major < 16:
-                result.status = "NOT_APPLICABLE"
+                result.status=ScanStatus.NOT_APPLICABLE
                 log_info(f"[{CVE_ID}] Next.js {version_detected} is 15.x — WebSocket routes not present. Skipping.")
                 return result
         except (ValueError, IndexError):
@@ -145,7 +146,7 @@ def scan(config: ScanConfig) -> ModuleResult:
         cve=CVE_ID,
         severity=CVE_INFO["severity"],
         title="WebSocket Upgrade SSRF (Self-Hosted, 16.x Only)",
-        status="VULNERABLE",
+        status=ScanStatus.VULNERABLE,
         detail=detail,
         evidence=probe_evidence,
         confidence=confidence,

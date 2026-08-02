@@ -12,8 +12,9 @@ import os
 import re
 import requests
 
-from core.config import ScanConfig, CVE_DATABASE
-from core.reporter import ModuleResult, Finding
+from core.config import ScanConfig
+from core.cve_database import CVE_DATABASE
+from core.reporter import ModuleResult, Finding, ScanStatus
 from core.output import (
     log_info, log_success, log_warning, log_critical, log_debug,
     log_trace, log_error, log_status, print_module_header, print_finding,
@@ -78,7 +79,7 @@ def scan(config: ScanConfig) -> ModuleResult:
         cve=CVE_ID,
         title=CVE_INFO["title"],
         severity=CVE_INFO["severity"],
-        status="NOT VULNERABLE",
+        status=ScanStatus.SAFE,
     )
 
     print_module_header(CVE_ID, CVE_INFO["title"], CVE_INFO["severity"])
@@ -97,7 +98,7 @@ def scan(config: ScanConfig) -> ModuleResult:
         r = session.get(target, timeout=config.timeout)
     except requests.RequestException as e:
         log_error(f"Cannot reach target: {e}")
-        result.status = "ERROR"
+        result.status=ScanStatus.ERROR
         result.error = str(e)
         return result
 
@@ -165,7 +166,7 @@ def scan(config: ScanConfig) -> ModuleResult:
                         result.add_finding(Finding(
                             cve=CVE_ID, severity="CRITICAL",
                             title=f"Exposed Secret: {secret_type}",
-                            status="VULNERABLE",
+                            status=ScanStatus.VULNERABLE,
                             detail=f"{secret_type} found in client bundle {fname}",
                             evidence=secret_entry,
                         ))
@@ -236,7 +237,7 @@ def scan(config: ScanConfig) -> ModuleResult:
                         result.add_finding(Finding(
                             cve=CVE_ID, severity="HIGH",
                             title=f"Exposed: {desc}",
-                            status="VULNERABLE", detail=detail,
+                            status=ScanStatus.VULNERABLE, detail=detail,
                             evidence=evidence,
                         ))
                     else:
@@ -276,7 +277,7 @@ def scan(config: ScanConfig) -> ModuleResult:
                             result.add_finding(Finding(
                                 cve=CVE_ID, severity="MEDIUM",
                                 title="API Data Exposure",
-                                status="VULNERABLE", detail=detail,
+                                status=ScanStatus.VULNERABLE, detail=detail,
                                 evidence={
                                     "api_path": api_path,
                                     "keywords": sensitive,

@@ -22,8 +22,9 @@ Severity       : High
 
 import requests
 
-from core.config import ScanConfig, CVE_DATABASE, check_vuln_status
-from core.reporter import ModuleResult, Finding
+from core.config import ScanConfig
+from core.cve_database import CVE_DATABASE, check_vuln_status
+from core.reporter import ModuleResult, Finding, ScanStatus
 from core.output import log_info, log_success, log_warning, log_debug, print_finding
 
 CVE_ID   = "CVE-2026-44573"
@@ -47,12 +48,12 @@ def scan(config: ScanConfig) -> ModuleResult:
         cve=CVE_ID,
         title=CVE_INFO["title"],
         severity=CVE_INFO["severity"],
-        status="NOT VULNERABLE",
+        status=ScanStatus.SAFE,
     )
 
     # Precondition: Pages Router
     if config.detected_router_type == "app":
-        result.status = "NOT_APPLICABLE"
+        result.status=ScanStatus.NOT_APPLICABLE
         log_info(f"[{CVE_ID}] App Router detected — skipping (Pages Router only).")
         return result
 
@@ -78,13 +79,13 @@ def scan(config: ScanConfig) -> ModuleResult:
     # Precondition: Build ID
     build_id = config.discovered_build_id
     if not build_id:
-        result.status = "INCONCLUSIVE"
+        result.status=ScanStatus.INCONCLUSIVE
         log_warning(f"[{CVE_ID}] No Build ID discovered — cannot probe data routes.")
         result.add_finding(Finding(
             cve=CVE_ID,
             severity=CVE_INFO["severity"],
             title="Pages Router i18n Bypass — Build ID Not Found",
-            status="INCONCLUSIVE",
+            status=ScanStatus.INCONCLUSIVE,
             detail="Build ID required to probe /_next/data/ routes. Run with --fingerprint first.",
             evidence={"version": version_detected or "unknown"},
             confidence=0.20,
@@ -166,7 +167,7 @@ def scan(config: ScanConfig) -> ModuleResult:
         cve=CVE_ID,
         severity=CVE_INFO["severity"],
         title="Pages Router i18n Data-Route Middleware Bypass",
-        status="VULNERABLE",
+        status=ScanStatus.VULNERABLE,
         detail=detail,
         evidence=bypass_evidence,
         confidence=confidence,

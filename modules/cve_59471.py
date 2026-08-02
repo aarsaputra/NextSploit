@@ -29,8 +29,9 @@ Severity : MEDIUM
 import time
 import requests
 
-from core.config import ScanConfig, CVE_DATABASE, check_vuln_status
-from core.reporter import ModuleResult, Finding
+from core.config import ScanConfig
+from core.cve_database import CVE_DATABASE, check_vuln_status
+from core.reporter import ModuleResult, Finding, ScanStatus
 from core.output import log_info, log_success, log_warning, log_debug, print_finding
 from core.timing import measure_baseline_timing, is_timing_anomalous
 
@@ -48,7 +49,7 @@ def scan(config: ScanConfig) -> ModuleResult:
         cve=CVE_ID,
         title=CVE_INFO["title"],
         severity=CVE_INFO["severity"],
-        status="NOT VULNERABLE",
+        status=ScanStatus.SAFE,
     )
 
     log_info(f"Starting {CVE_ID} scan — Image Optimizer OOM DoS check...")
@@ -83,12 +84,12 @@ def scan(config: ScanConfig) -> ModuleResult:
     if not endpoint_active:
         if version_vulnerable:
             # Version matches but we cannot confirm behavior without endpoint
-            result.status = "INCONCLUSIVE"
+            result.status=ScanStatus.INCONCLUSIVE
             result.add_finding(Finding(
                 cve=CVE_ID,
                 severity=CVE_INFO["severity"],
                 title="Version matches — endpoint not reachable",
-                status="INCONCLUSIVE",
+                status=ScanStatus.INCONCLUSIVE,
                 detail="Version in vulnerable range but /_next/image endpoint is not reachable.",
                 evidence={"detected_version": version_detected},
                 confidence=0.35,
@@ -100,12 +101,12 @@ def scan(config: ScanConfig) -> ModuleResult:
     # Passive mode default: no active probe
     if not config.confirm_active:
         if version_vulnerable:
-            result.status = "INCONCLUSIVE"
+            result.status=ScanStatus.INCONCLUSIVE
             result.add_finding(Finding(
                 cve=CVE_ID,
                 severity=CVE_INFO["severity"],
                 title="Version range matches — OOM probe skipped (requires --confirm-active)",
-                status="INCONCLUSIVE",
+                status=ScanStatus.INCONCLUSIVE,
                 detail="Version matches vulnerable range but no active probe executed.",
                 evidence={"detected_version": version_detected},
                 confidence=0.35,
@@ -187,7 +188,7 @@ def scan(config: ScanConfig) -> ModuleResult:
         cve=CVE_ID,
         severity=CVE_INFO["severity"],
         title="Image Optimizer OOM Denial of Service",
-        status="VULNERABLE",
+        status=ScanStatus.VULNERABLE,
         detail=detail,
         evidence=evidence,
         confidence=confidence,

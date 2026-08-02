@@ -9,8 +9,9 @@ Affected: >= 13.0.0, < 15.5.21 | >= 16.0.0, < 16.2.11
 """
 
 import time, requests
-from core.config import ScanConfig, CVE_DATABASE, check_vuln_status
-from core.reporter import ModuleResult, Finding
+from core.config import ScanConfig
+from core.cve_database import CVE_DATABASE, check_vuln_status
+from core.reporter import ModuleResult, Finding, ScanStatus
 from core.output import log_info, log_success, log_warning, log_debug, print_finding
 
 CVE_ID   = "CVE-2026-64644"
@@ -22,7 +23,7 @@ _SVG_DATA_URI = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vc
 
 def scan(config: ScanConfig) -> ModuleResult:
     result = ModuleResult(cve=CVE_ID, title=CVE_INFO["title"],
-                          severity=CVE_INFO["severity"], status="NOT VULNERABLE")
+                          severity=CVE_INFO["severity"], status=ScanStatus.SAFE)
 
     session = config.create_session()
     target  = config.target.rstrip("/")
@@ -33,11 +34,11 @@ def scan(config: ScanConfig) -> ModuleResult:
             "Target hosted on Vercel (managed) — Image Optimization API SVG DoS is NOT APPLICABLE "
             "due to platform-level protection (per GHSA-q8wf-6r8g-63ch)."
         )
-        result.status = "NOT_APPLICABLE"
+        result.status=ScanStatus.NOT_APPLICABLE
         result.add_finding(Finding(
             cve=CVE_ID, severity=CVE_INFO["severity"],
             title="Managed Hosting Exemption — CVE-2026-64644 Not Applicable",
-            status="NOT_APPLICABLE", detail=detail,
+            status=ScanStatus.NOT_APPLICABLE, detail=detail,
             evidence={"hosting": "Vercel (managed)", "exemption": "GHSA-q8wf-6r8g-63ch"},
             confidence=1.0,
         ))
@@ -94,6 +95,6 @@ def scan(config: ScanConfig) -> ModuleResult:
     log_warning(detail)
     print_finding(CVE_ID, detail, evidence)
     result.add_finding(Finding(cve=CVE_ID, severity=CVE_INFO["severity"],
-        title="DoS Image Optimization API via SVG", status="VULNERABLE",
+        title="DoS Image Optimization API via SVG", status=ScanStatus.VULNERABLE,
         detail=detail, evidence=evidence, confidence=confidence))
     return result

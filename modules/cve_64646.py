@@ -9,8 +9,9 @@ Affected: >= 15.0.0, < 15.5.21 | >= 16.0.0, < 16.2.11
 """
 
 import requests
-from core.config import ScanConfig, CVE_DATABASE, check_vuln_status
-from core.reporter import ModuleResult, Finding
+from core.config import ScanConfig
+from core.cve_database import CVE_DATABASE, check_vuln_status
+from core.reporter import ModuleResult, Finding, ScanStatus
 from core.output import log_info, log_success, log_warning, log_debug, print_finding
 
 CVE_ID   = "CVE-2026-64646"
@@ -19,14 +20,14 @@ CVE_INFO = CVE_DATABASE[CVE_ID]
 
 def scan(config: ScanConfig) -> ModuleResult:
     result = ModuleResult(cve=CVE_ID, title=CVE_INFO["title"],
-                          severity=CVE_INFO["severity"], status="NOT VULNERABLE")
+                          severity=CVE_INFO["severity"], status=ScanStatus.SAFE)
 
     if not config.has_active_server_actions():
-        result.status = "NOT_APPLICABLE"
+        result.status=ScanStatus.NOT_APPLICABLE
         log_info(f"[{CVE_ID}] No Server Action IDs — skipping.")
         return result
     if not config.has_app_router():
-        result.status = "NOT_APPLICABLE"
+        result.status=ScanStatus.NOT_APPLICABLE
         log_info(f"[{CVE_ID}] Pages Router detected — skipping.")
         return result
 
@@ -83,5 +84,5 @@ def scan(config: ScanConfig) -> ModuleResult:
     print_finding(CVE_ID, detail, evidence)
     result.add_finding(Finding(cve=CVE_ID, severity=CVE_INFO["severity"],
         title="Unbounded SA Payload Edge Runtime Memory Exhaustion",
-        status="VULNERABLE", detail=detail, evidence=evidence, confidence=confidence))
+        status=ScanStatus.VULNERABLE, detail=detail, evidence=evidence, confidence=confidence))
     return result

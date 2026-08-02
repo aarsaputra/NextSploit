@@ -4,8 +4,9 @@ NextSploit — CVE-2024-56332: Pathname Middleware Auth Bypass
 """
 
 import requests
-from core.config import ScanConfig, CVE_DATABASE
-from core.reporter import ModuleResult, Finding
+from core.config import ScanConfig
+from core.cve_database import CVE_DATABASE
+from core.reporter import ModuleResult, Finding, ScanStatus
 from core.output import log_info, log_success, log_warning, log_debug, print_finding
 
 CVE_ID = "CVE-2024-56332"
@@ -16,7 +17,7 @@ def scan(config: ScanConfig) -> ModuleResult:
         cve=CVE_ID,
         title=CVE_INFO.get("title", "Pathname Middleware Auth Bypass"),
         severity=CVE_INFO.get("severity", "HIGH"),
-        status="NOT VULNERABLE"
+        status=ScanStatus.SAFE
     )
     
     session = config.create_session()
@@ -88,7 +89,7 @@ def scan(config: ScanConfig) -> ModuleResult:
                         cve=CVE_ID,
                         severity=CVE_INFO.get("severity", "HIGH"),
                         title="Pathname Middleware Auth Bypass Detected",
-                        status="VULNERABLE",
+                        status=ScanStatus.VULNERABLE,
                         detail=detail,
                         evidence=evidence,
                         confidence=0.8

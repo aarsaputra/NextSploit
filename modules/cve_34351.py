@@ -21,8 +21,9 @@ import re
 import os
 import requests
 
-from core.config import ScanConfig, CVE_DATABASE
-from core.reporter import ModuleResult, Finding
+from core.config import ScanConfig
+from core.cve_database import CVE_DATABASE
+from core.reporter import ModuleResult, Finding, ScanStatus
 from core.waf_bypass import WAFBypass
 from core.output import (
     log_info, log_success, log_warning, log_critical, log_debug,
@@ -120,7 +121,7 @@ def scan(config: ScanConfig) -> ModuleResult:
     """
     result = ModuleResult(
         cve=CVE_ID, title=CVE_INFO["title"],
-        severity=CVE_INFO["severity"], status="NOT VULNERABLE",
+        severity=CVE_INFO["severity"], status=ScanStatus.SAFE,
     )
     print_module_header(CVE_ID, CVE_INFO["title"], CVE_INFO["severity"])
     session = config.create_session()
@@ -274,7 +275,7 @@ def scan(config: ScanConfig) -> ModuleResult:
                             result.add_finding(Finding(
                                 cve=CVE_ID, severity="CRITICAL",
                                 title="SSRF via Host Header Reflection in Redirect",
-                                status="VULNERABLE", detail=detail, evidence=evidence,
+                                status=ScanStatus.VULNERABLE, detail=detail, evidence=evidence,
                             ))
 
                     # Check if response differs significantly with injected host
@@ -297,7 +298,7 @@ def scan(config: ScanConfig) -> ModuleResult:
                             result.add_finding(Finding(
                                 cve=CVE_ID, severity="HIGH",
                                 title="Server Action Host-Sensitive Response",
-                                status="VULNERABLE", detail=detail, evidence=evidence,
+                                status=ScanStatus.VULNERABLE, detail=detail, evidence=evidence,
                             ))
 
                 except requests.RequestException as e:
@@ -364,7 +365,7 @@ def scan(config: ScanConfig) -> ModuleResult:
                         result.add_finding(Finding(
                             cve=CVE_ID, severity="CRITICAL",
                             title="CONFIRMED SSRF via Server Actions — Internal Data Leaked",
-                            status="VULNERABLE", detail=detail, evidence=evidence,
+                            status=ScanStatus.VULNERABLE, detail=detail, evidence=evidence,
                         ))
 
             except requests.RequestException as e:

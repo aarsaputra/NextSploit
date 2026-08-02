@@ -122,6 +122,19 @@ def check_latest_version() -> bool | None:
 
 def run_self_update() -> None:
     """Execute git pull and pip install -r requirements.txt."""
+    if sys.stdin.isatty():
+        log_warning("⚠️  WARNING: Self-update will execute 'git pull origin main' and 'pip install -r requirements.txt'")
+        log_warning("This may overwrite local modifications and upgrade dependencies.")
+        try:
+            choice = input("Do you want to proceed? [y/N]: ").strip().lower()
+            if choice not in ("y", "yes"):
+                log_info("Update cancelled by user.")
+                return
+        except (KeyboardInterrupt, EOFError):
+            print()
+            log_info("Update cancelled.")
+            return
+
     log_info("Starting self-update routine...")
     try:
         log_info("Running git pull origin main...")
@@ -135,6 +148,12 @@ def run_self_update() -> None:
         else:
             log_warning("Git pull returned non-zero code — may need manual merge.")
             print(p_git.stderr)
+
+        if not os.path.exists("requirements.txt"):
+            log_warning("requirements.txt not found — skipping dependencies install.")
+            _write_cache(None)
+            log_success("Update sequence complete.")
+            return
 
         log_info("Updating dependencies from requirements.txt...")
         p_pip = subprocess.run(

@@ -10,8 +10,9 @@ Affected: >= 13.0.0, < 15.5.21 | >= 16.0.0, < 16.2.11
 """
 
 import requests
-from core.config import ScanConfig, CVE_DATABASE, check_vuln_status
-from core.reporter import ModuleResult, Finding
+from core.config import ScanConfig
+from core.cve_database import CVE_DATABASE, check_vuln_status
+from core.reporter import ModuleResult, Finding, ScanStatus
 from core.output import log_info, log_success, log_warning, log_debug, print_finding
 
 CVE_ID   = "CVE-2026-64648"
@@ -20,7 +21,7 @@ CVE_INFO = CVE_DATABASE[CVE_ID]
 
 def scan(config: ScanConfig) -> ModuleResult:
     result = ModuleResult(cve=CVE_ID, title=CVE_INFO["title"],
-                          severity=CVE_INFO["severity"], status="NOT VULNERABLE")
+                          severity=CVE_INFO["severity"], status=ScanStatus.SAFE)
 
     session = config.create_session()
     target  = config.target.rstrip("/")
@@ -45,11 +46,11 @@ def scan(config: ScanConfig) -> ModuleResult:
                 f"Version {version_detected} is in the vulnerable range for {CVE_ID}. "
                 "Active confirmation requires --confirm-active (WARNING: may pollute shared cache)."
             )
-            result.status = "INCONCLUSIVE"
+            result.status=ScanStatus.INCONCLUSIVE
             result.add_finding(Finding(
                 cve=CVE_ID, severity=CVE_INFO["severity"],
                 title="Cache Confusion (fetch body mismatch) — Unconfirmed",
-                status="INCONCLUSIVE",
+                status=ScanStatus.INCONCLUSIVE,
                 detail=detail,
                 evidence={
                     "detected_version": version_detected or "unknown",
@@ -118,5 +119,5 @@ def scan(config: ScanConfig) -> ModuleResult:
     print_finding(CVE_ID, detail, active_evidence)
     result.add_finding(Finding(cve=CVE_ID, severity=CVE_INFO["severity"],
         title="Cache Confusion — fetch() Response Body Mismatch",
-        status="VULNERABLE", detail=detail, evidence=active_evidence, confidence=confidence))
+        status=ScanStatus.VULNERABLE, detail=detail, evidence=active_evidence, confidence=confidence))
     return result

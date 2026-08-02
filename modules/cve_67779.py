@@ -33,8 +33,9 @@ Detection Strategy:
 import time
 import requests
 
-from core.config import ScanConfig, CVE_DATABASE, check_vuln_status
-from core.reporter import ModuleResult, Finding
+from core.config import ScanConfig
+from core.cve_database import CVE_DATABASE, check_vuln_status
+from core.reporter import ModuleResult, Finding, ScanStatus
 from core.output import (
     log_info, log_success, log_warning, log_critical, log_debug,
     log_trace, print_module_header, print_finding, create_progress,
@@ -104,7 +105,7 @@ def scan(config: ScanConfig) -> ModuleResult:
         cve=CVE_ID,
         title=CVE_INFO["title"],
         severity=CVE_INFO["severity"],
-        status="NOT VULNERABLE",
+        status=ScanStatus.SAFE,
     )
     print_module_header(CVE_ID, CVE_INFO["title"], CVE_INFO["severity"])
     log_info(
@@ -153,7 +154,7 @@ def scan(config: ScanConfig) -> ModuleResult:
                 cve=CVE_ID,
                 severity=CVE_INFO["severity"],
                 title="Vulnerable Version Detected — Incomplete DoS Fix",
-                status="VULNERABLE",
+                status=ScanStatus.VULNERABLE,
                 detail=detail,
                 evidence=evidence,
                 confidence=0.92,
@@ -244,7 +245,7 @@ def scan(config: ScanConfig) -> ModuleResult:
                     cve=CVE_ID,
                     severity=sev,
                     title=title,
-                    status="VULNERABLE",
+                    status=ScanStatus.VULNERABLE,
                     detail=detail,
                     evidence=evidence,
                     confidence=confidence,
@@ -268,7 +269,7 @@ def scan(config: ScanConfig) -> ModuleResult:
                     cve=CVE_ID,
                     severity="HIGH",
                     title="RSC Endpoint Timeout — Potential Infinite Loop DoS",
-                    status="VULNERABLE",
+                    status=ScanStatus.VULNERABLE,
                     detail=detail,
                     evidence=evidence,
                     confidence=0.70,

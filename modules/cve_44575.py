@@ -14,8 +14,9 @@ CVSS              : High
 """
 
 import requests
-from core.config import ScanConfig, CVE_DATABASE, check_vuln_status
-from core.reporter import ModuleResult, Finding
+from core.config import ScanConfig
+from core.cve_database import CVE_DATABASE, check_vuln_status
+from core.reporter import ModuleResult, Finding, ScanStatus
 from core.output import log_info, log_success, log_warning, log_debug, print_finding
 
 CVE_ID   = "CVE-2026-44575"
@@ -66,12 +67,12 @@ def scan(config: ScanConfig) -> ModuleResult:
         cve=CVE_ID,
         title=CVE_INFO["title"],
         severity=CVE_INFO["severity"],
-        status="NOT VULNERABLE",
+        status=ScanStatus.SAFE,
     )
 
     # Precondition Checks
     if not config.has_app_router():
-        result.status = "NOT_APPLICABLE"
+        result.status=ScanStatus.NOT_APPLICABLE
         log_info(f"[{CVE_ID}] App router not detected. Skipping.")
         return result
 
@@ -155,7 +156,7 @@ def scan(config: ScanConfig) -> ModuleResult:
             cve=CVE_ID,
             severity=CVE_INFO["severity"],
             title="Middleware Bypass via Segment-Prefetch Route Confirmed",
-            status="VULNERABLE",
+            status=ScanStatus.VULNERABLE,
             detail=detail,
             evidence=evidence,
             confidence=0.95,
@@ -185,7 +186,7 @@ def scan(config: ScanConfig) -> ModuleResult:
                 cve=CVE_ID,
                 severity=CVE_INFO["severity"],
                 title="Vulnerable Version Detected (Version-Based)",
-                status="VULNERABLE",
+                status=ScanStatus.VULNERABLE,
                 detail=detail,
                 evidence=evidence,
                 confidence=0.75,

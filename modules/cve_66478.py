@@ -24,8 +24,9 @@ import json
 import hashlib
 import requests
 
-from core.config import ScanConfig, CVE_DATABASE
-from core.reporter import ModuleResult, Finding
+from core.config import ScanConfig
+from core.cve_database import CVE_DATABASE
+from core.reporter import ModuleResult, Finding, ScanStatus
 from core.output import (
     log_info, log_success, log_warning, log_critical, log_debug,
     log_trace, log_error, print_module_header, print_finding, create_progress,
@@ -161,7 +162,7 @@ def scan(config: ScanConfig) -> ModuleResult:
     """
     result = ModuleResult(
         cve=CVE_ID, title=CVE_INFO["title"],
-        severity=CVE_INFO["severity"], status="NOT VULNERABLE",
+        severity=CVE_INFO["severity"], status=ScanStatus.SAFE,
     )
     print_module_header(CVE_ID, CVE_INFO["title"], CVE_INFO["severity"])
     log_info("[!] Operating in PASSIVE detection mode — no actual RCE payload sent")
@@ -265,7 +266,7 @@ def scan(config: ScanConfig) -> ModuleResult:
                             result.add_finding(Finding(
                                 cve=CVE_ID, severity=risk,
                                 title="RSC Flight Protocol Deserialization Indicator",
-                                status="VULNERABLE", detail=detail, evidence=evidence,
+                                status=ScanStatus.VULNERABLE, detail=detail, evidence=evidence,
                             ))
 
                         # Check 2: Response differs from baseline (proto pollution observable effect)
@@ -298,7 +299,7 @@ def scan(config: ScanConfig) -> ModuleResult:
                                 result.add_finding(Finding(
                                     cve=CVE_ID, severity="MEDIUM",
                                     title="RSC Flight Protocol Response Anomaly",
-                                    status="VULNERABLE", detail=detail, evidence=evidence,
+                                    status=ScanStatus.VULNERABLE, detail=detail, evidence=evidence,
                                 ))
 
                         break  # Don't spam all action IDs if first one gets a response
@@ -361,7 +362,7 @@ def scan(config: ScanConfig) -> ModuleResult:
                         result.add_finding(Finding(
                             cve=CVE_ID, severity="CRITICAL",
                             title="decodeReplyFromBusboy Deserialization Indicator",
-                            status="VULNERABLE", detail=detail, evidence=evidence,
+                            status=ScanStatus.VULNERABLE, detail=detail, evidence=evidence,
                         ))
 
                 except requests.RequestException as e:
@@ -411,7 +412,7 @@ def scan(config: ScanConfig) -> ModuleResult:
                     result.add_finding(Finding(
                         cve=CVE_ID, severity="HIGH",
                         title="Internal Stack Trace Leaked",
-                        status="VULNERABLE", detail=detail, evidence=evidence,
+                        status=ScanStatus.VULNERABLE, detail=detail, evidence=evidence,
                     ))
 
             except requests.RequestException as e:

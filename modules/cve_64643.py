@@ -17,8 +17,9 @@ Affected Versions:
 import re
 import requests
 
-from core.config import ScanConfig, CVE_DATABASE, check_vuln_status
-from core.reporter import ModuleResult, Finding
+from core.config import ScanConfig
+from core.cve_database import CVE_DATABASE, check_vuln_status
+from core.reporter import ModuleResult, Finding, ScanStatus
 from core.output import log_info, log_success, log_warning, log_debug, print_finding
 
 CVE_ID   = "CVE-2026-64643"
@@ -29,10 +30,10 @@ _ACTION_ID_IN_ERROR_RE = re.compile(r'["\']([0-9a-f]{8,40})["\']')
 
 def scan(config: ScanConfig) -> ModuleResult:
     result = ModuleResult(cve=CVE_ID, title=CVE_INFO["title"],
-                          severity=CVE_INFO["severity"], status="NOT VULNERABLE")
+                          severity=CVE_INFO["severity"], status=ScanStatus.SAFE)
 
     if not config.has_active_server_actions():
-        result.status = "NOT_APPLICABLE"
+        result.status=ScanStatus.NOT_APPLICABLE
         log_info(f"[{CVE_ID}] No Server Action IDs discovered — skipping.")
         return result
 

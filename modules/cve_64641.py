@@ -22,8 +22,9 @@ Severity       : High
 import time
 import requests
 
-from core.config import ScanConfig, CVE_DATABASE, check_vuln_status
-from core.reporter import ModuleResult, Finding
+from core.config import ScanConfig
+from core.cve_database import CVE_DATABASE, check_vuln_status
+from core.reporter import ModuleResult, Finding, ScanStatus
 from core.output import log_info, log_success, log_warning, log_debug, print_finding
 
 CVE_ID   = "CVE-2026-64641"
@@ -51,18 +52,18 @@ def scan(config: ScanConfig) -> ModuleResult:
         cve=CVE_ID,
         title=CVE_INFO["title"],
         severity=CVE_INFO["severity"],
-        status="NOT VULNERABLE",
+        status=ScanStatus.SAFE,
     )
 
     # Precondition: App Router
     if not config.has_app_router():
-        result.status = "NOT_APPLICABLE"
+        result.status=ScanStatus.NOT_APPLICABLE
         log_info(f"[{CVE_ID}] Pages Router detected — skipping.")
         return result
 
     # Precondition: at least one Server Action
     if not config.has_active_server_actions():
-        result.status = "NOT_APPLICABLE"
+        result.status=ScanStatus.NOT_APPLICABLE
         log_info(f"[{CVE_ID}] No Server Action IDs discovered — skipping.")
         return result
 
@@ -161,7 +162,7 @@ def scan(config: ScanConfig) -> ModuleResult:
         cve=CVE_ID,
         severity=CVE_INFO["severity"],
         title="DoS App Router via Server Actions CPU Exhaustion",
-        status="VULNERABLE",
+        status=ScanStatus.VULNERABLE,
         detail=detail,
         evidence=evidence,
         confidence=confidence,

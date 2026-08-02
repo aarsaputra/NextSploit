@@ -18,7 +18,7 @@ import uuid
 import requests
 
 from core.config import ScanConfig
-from core.reporter import ModuleResult, Finding
+from core.reporter import ModuleResult, Finding, ScanStatus
 from core.output import (
     log_info, log_success, log_warning, log_critical, log_debug,
     log_trace, log_error, log_status, print_module_header, print_finding,
@@ -87,7 +87,7 @@ def scan(config: ScanConfig) -> ModuleResult:
         cve=MODULE_NAME,
         title=MODULE_TITLE,
         severity=MODULE_SEVERITY,
-        status="NOT VULNERABLE",
+        status=ScanStatus.SAFE,
     )
 
     print_module_header(MODULE_NAME, MODULE_TITLE, MODULE_SEVERITY)
@@ -203,7 +203,7 @@ def scan(config: ScanConfig) -> ModuleResult:
                         result.add_finding(Finding(
                             cve=MODULE_NAME, severity="MEDIUM",
                             title="Server Action Endpoint Active",
-                            status="VULNERABLE", detail=detail, evidence=evidence,
+                            status=ScanStatus.VULNERABLE, detail=detail, evidence=evidence,
                         ))
                         break  # Found active SA on this endpoint, move on
 
@@ -269,7 +269,7 @@ def scan(config: ScanConfig) -> ModuleResult:
                     result.add_finding(Finding(
                         cve=MODULE_NAME, severity="MEDIUM",
                         title="Multipart Server Action Active",
-                        status="VULNERABLE", detail=detail,
+                        status=ScanStatus.VULNERABLE, detail=detail,
                         evidence=evidence,
                     ))
 
@@ -349,7 +349,7 @@ def scan(config: ScanConfig) -> ModuleResult:
                         result.add_finding(Finding(
                             cve=MODULE_NAME, severity="HIGH",
                             title="RSC Data Extraction",
-                            status="VULNERABLE", detail=detail,
+                            status=ScanStatus.VULNERABLE, detail=detail,
                             evidence=evidence,
                         ))
 
@@ -444,7 +444,7 @@ def scan(config: ScanConfig) -> ModuleResult:
                         result.add_finding(Finding(
                             cve=MODULE_NAME, severity="HIGH",
                             title="Prototype Pollution Response Difference",
-                            status="VULNERABLE", detail=detail, evidence=evidence,
+                            status=ScanStatus.VULNERABLE, detail=detail, evidence=evidence,
                         ))
                     else:
                         log_trace(f"PP ignored [{ep}|{desc}]: {fp_reason}")

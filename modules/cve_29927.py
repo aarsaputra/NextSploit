@@ -11,8 +11,9 @@ Affected: Next.js < 14.2.25
 import requests
 import os
 
-from core.config import ScanConfig, CVE_DATABASE, check_vuln_status
-from core.reporter import ModuleResult, Finding
+from core.config import ScanConfig
+from core.cve_database import CVE_DATABASE, check_vuln_status
+from core.reporter import ModuleResult, Finding, ScanStatus
 from core.output import (
     log_info, log_success, log_warning, log_critical, log_debug,
     log_trace, log_error, log_status, print_module_header, print_finding,
@@ -119,7 +120,7 @@ def scan(config: ScanConfig) -> ModuleResult:
         cve=CVE_ID,
         title=CVE_INFO["title"],
         severity=CVE_INFO["severity"],
-        status="NOT VULNERABLE",
+        status=ScanStatus.SAFE,
     )
 
     from core.output import print_section
@@ -240,7 +241,7 @@ def scan(config: ScanConfig) -> ModuleResult:
                             cve=CVE_ID,
                             severity=severity,
                             title=CVE_INFO["title"],
-                            status="VULNERABLE",
+                            status=ScanStatus.VULNERABLE,
                             detail=detail,
                             evidence=evidence,
                         )

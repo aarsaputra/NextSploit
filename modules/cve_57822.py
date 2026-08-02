@@ -18,8 +18,9 @@ import hashlib
 import requests
 import concurrent.futures
 
-from core.config import ScanConfig, CVE_DATABASE
-from core.reporter import ModuleResult, Finding
+from core.config import ScanConfig
+from core.cve_database import CVE_DATABASE
+from core.reporter import ModuleResult, Finding, ScanStatus
 from core.waf_bypass import WAFBypass
 from core.output import (
     log_info, log_success, log_warning, log_critical, log_debug,
@@ -174,7 +175,7 @@ def scan(config: ScanConfig) -> ModuleResult:
     """
     result = ModuleResult(
         cve=CVE_ID, title=CVE_INFO["title"],
-        severity=CVE_INFO["severity"], status="NOT VULNERABLE",
+        severity=CVE_INFO["severity"], status=ScanStatus.SAFE,
     )
     print_module_header(CVE_ID, CVE_INFO["title"], CVE_INFO["severity"])
     session = config.create_session()
@@ -271,7 +272,7 @@ def scan(config: ScanConfig) -> ModuleResult:
                             result.add_finding(Finding(
                                 cve=CVE_ID, severity=sev,
                                 title="SSRF Internal Redirect",
-                                status="VULNERABLE", detail=detail, evidence=evidence,
+                                status=ScanStatus.VULNERABLE, detail=detail, evidence=evidence,
                             ))
                         elif not is_internal:
                             log_debug(f"Redirect to: {loc} (external)")
@@ -335,7 +336,7 @@ def scan(config: ScanConfig) -> ModuleResult:
                         result.add_finding(Finding(
                             cve=CVE_ID, severity=sev,
                             title="SSRF-Induced Response Difference",
-                            status="VULNERABLE", detail=detail, evidence=evidence,
+                            status=ScanStatus.VULNERABLE, detail=detail, evidence=evidence,
                         ))
 
 
@@ -359,7 +360,7 @@ def scan(config: ScanConfig) -> ModuleResult:
                         result.add_finding(Finding(
                             cve=CVE_ID, severity="MEDIUM",
                             title="SSRF Status Anomaly",
-                            status="VULNERABLE", detail=detail, evidence=evidence,
+                            status=ScanStatus.VULNERABLE, detail=detail, evidence=evidence,
                         ))
 
                 except requests.RequestException as e:
@@ -387,7 +388,7 @@ def scan(config: ScanConfig) -> ModuleResult:
                     print_finding(CVE_ID, detail, evidence)
                     result.add_finding(Finding(
                         cve=CVE_ID, severity="HIGH", title="Parameter-based SSRF Endpoint",
-                        status="VULNERABLE", detail=detail, evidence=evidence,
+                        status=ScanStatus.VULNERABLE, detail=detail, evidence=evidence,
                     ))
             except requests.RequestException as e:
                 log_trace(f"Network error probing {param_ep}: {e}")
@@ -422,7 +423,7 @@ def _scan_internal_network(config, session, target, result):
                         log_warning(f"Internal redirect via {ip}:{port} → {loc}")
                         result.add_finding(Finding(
                             cve=CVE_ID, severity="HIGH", title="Internal Service Access",
-                            status="VULNERABLE", detail=f"Redirect to {ip}:{port}",
+                            status=ScanStatus.VULNERABLE, detail=f"Redirect to {ip}:{port}",
                             evidence={"ip": ip, "port": port, "redirect": loc},
                         ))
             except Exception as e:
@@ -456,6 +457,6 @@ def _scan_internal_network(config, session, target, result):
                 log_critical(f"Internal service: {ip}:{port} → {loc}")
                 result.add_finding(Finding(
                     cve=CVE_ID, severity="HIGH", title="Internal Network Service",
-                    status="VULNERABLE", detail=f"Internal service accessible: {ip}:{port}",
+                    status=ScanStatus.VULNERABLE, detail=f"Internal service accessible: {ip}:{port}",
                     evidence={"ip": ip, "port": port, "redirect": loc},
                 ))

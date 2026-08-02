@@ -5,8 +5,9 @@ NextSploit — CVE-2025-48068: Dev Server Source Code Exposure
 
 import requests
 import re
-from core.config import ScanConfig, CVE_DATABASE
-from core.reporter import ModuleResult, Finding
+from core.config import ScanConfig
+from core.cve_database import CVE_DATABASE
+from core.reporter import ModuleResult, Finding, ScanStatus
 from core.output import log_info, log_success, log_warning, log_debug, print_finding
 
 CVE_ID = "CVE-2025-48068"
@@ -17,7 +18,7 @@ def scan(config: ScanConfig) -> ModuleResult:
         cve=CVE_ID,
         title=CVE_INFO.get("title", "Dev Server Source Exposure"),
         severity=CVE_INFO.get("severity", "LOW"),
-        status="NOT VULNERABLE"
+        status=ScanStatus.SAFE
     )
     
     session = config.create_session()
@@ -92,7 +93,7 @@ def scan(config: ScanConfig) -> ModuleResult:
                         cve=CVE_ID,
                         severity="MEDIUM" if sensitive_hits else CVE_INFO.get("severity", "LOW"),
                         title="Source Code Exposure Confirmed",
-                        status="VULNERABLE",
+                        status=ScanStatus.VULNERABLE,
                         detail=detail,
                         evidence=evidence,
                         confidence=0.85

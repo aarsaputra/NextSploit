@@ -22,8 +22,9 @@ CVSS              : 7.5 (High)
 
 import time
 import requests
-from core.config import ScanConfig, CVE_DATABASE, check_vuln_status
-from core.reporter import ModuleResult, Finding
+from core.config import ScanConfig
+from core.cve_database import CVE_DATABASE, check_vuln_status
+from core.reporter import ModuleResult, Finding, ScanStatus
 from core.output import log_info, log_success, log_warning, log_debug, print_finding
 
 CVE_ID   = "CVE-2026-23864"
@@ -91,14 +92,14 @@ def scan(config: ScanConfig) -> ModuleResult:
         cve=CVE_ID,
         title=CVE_INFO["title"],
         severity=CVE_INFO["severity"],
-        status="NOT VULNERABLE",
+        status=ScanStatus.SAFE,
     )
 
     # Precondition Checks
     # CVE-2026-23864 targets React Flight protocol decoder on Server Action endpoints.
     # It requires Server Actions.
     if not config.has_active_server_actions():
-        result.status = "NOT_APPLICABLE"
+        result.status=ScanStatus.NOT_APPLICABLE
         log_info(f"[{CVE_ID}] No active Server Action IDs discovered. Skipping.")
         return result
 
@@ -137,7 +138,7 @@ def scan(config: ScanConfig) -> ModuleResult:
                 cve=CVE_ID,
                 severity=CVE_INFO["severity"],
                 title="Vulnerable Version Detected — RSC Memory Exhaustion DoS",
-                status="VULNERABLE",
+                status=ScanStatus.VULNERABLE,
                 detail=detail,
                 evidence=evidence,
                 confidence=0.92,
@@ -190,7 +191,7 @@ def scan(config: ScanConfig) -> ModuleResult:
                 cve=CVE_ID,
                 severity=CVE_INFO["severity"],
                 title="Suspicious RSC Response Time (Timing-Based)",
-                status="VULNERABLE",
+                status=ScanStatus.VULNERABLE,
                 detail=detail,
                 evidence=evidence,
                 confidence=0.65,
@@ -209,7 +210,7 @@ def scan(config: ScanConfig) -> ModuleResult:
             cve=CVE_ID,
             severity=CVE_INFO["severity"],
             title="RSC Endpoint Timeout (Potential DoS Indicator)",
-            status="VULNERABLE",
+            status=ScanStatus.VULNERABLE,
             detail=detail,
             evidence=evidence,
             confidence=0.60,

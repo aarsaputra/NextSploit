@@ -10,8 +10,9 @@ Affected: >= 13.0.0, < 15.5.21 | >= 16.0.0, < 16.2.11
 """
 
 import requests
-from core.config import ScanConfig, CVE_DATABASE, check_vuln_status
-from core.reporter import ModuleResult, Finding
+from core.config import ScanConfig
+from core.cve_database import CVE_DATABASE, check_vuln_status
+from core.reporter import ModuleResult, Finding, ScanStatus
 from core.output import log_info, log_success, log_warning, log_debug, print_finding
 
 CVE_ID   = "CVE-2026-64647"
@@ -23,7 +24,7 @@ _INVALID_UTF8 = b"\xff\xfe" + b"nextsploit-invalid-utf8-probe"
 
 def scan(config: ScanConfig) -> ModuleResult:
     result = ModuleResult(cve=CVE_ID, title=CVE_INFO["title"],
-                          severity=CVE_INFO["severity"], status="NOT VULNERABLE")
+                          severity=CVE_INFO["severity"], status=ScanStatus.SAFE)
 
     session = config.create_session()
     target  = config.target.rstrip("/")
@@ -31,11 +32,11 @@ def scan(config: ScanConfig) -> ModuleResult:
 
     if not config.has_app_router():
         detail = f"Target does not use App Router — {CVE_ID} applies ONLY to App Router applications (GHSA-4633-3j49-mh5q)."
-        result.status = "NOT_APPLICABLE"
+        result.status=ScanStatus.NOT_APPLICABLE
         result.add_finding(Finding(
             cve=CVE_ID, severity=CVE_INFO["severity"],
             title="App Router Precondition Not Met",
-            status="NOT_APPLICABLE", detail=detail,
+            status=ScanStatus.NOT_APPLICABLE, detail=detail,
             evidence={"has_app_router": False}, confidence=1.0
         ))
         log_info(detail)
@@ -60,11 +61,11 @@ def scan(config: ScanConfig) -> ModuleResult:
                 "Active confirmation requires --confirm-active "
                 "(WARNING: may pollute shared cache/CDN)."
             )
-            result.status = "INCONCLUSIVE"
+            result.status=ScanStatus.INCONCLUSIVE
             result.add_finding(Finding(
                 cve=CVE_ID, severity=CVE_INFO["severity"],
                 title="Cache Confusion (invalid UTF-8 body) — Unconfirmed",
-                status="INCONCLUSIVE", detail=detail,
+                status=ScanStatus.INCONCLUSIVE, detail=detail,
                 evidence={"detected_version": version_detected or "unknown",
                           "note": "Requires --confirm-active for differential cache test.",
                           "warning": "Active test may pollute shared CDN cache."},
@@ -122,5 +123,5 @@ def scan(config: ScanConfig) -> ModuleResult:
     print_finding(CVE_ID, detail, active_evidence)
     result.add_finding(Finding(cve=CVE_ID, severity=CVE_INFO["severity"],
         title="Cache Confusion — Invalid UTF-8 Request Body Variant",
-        status="VULNERABLE", detail=detail, evidence=active_evidence, confidence=confidence))
+        status=ScanStatus.VULNERABLE, detail=detail, evidence=active_evidence, confidence=confidence))
     return result

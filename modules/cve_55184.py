@@ -12,8 +12,9 @@ import time
 import statistics
 import requests
 
-from core.config import ScanConfig, CVE_DATABASE
-from core.reporter import ModuleResult, Finding
+from core.config import ScanConfig
+from core.cve_database import CVE_DATABASE
+from core.reporter import ModuleResult, Finding, ScanStatus
 from core.output import (
     log_info, log_success, log_warning, log_critical, log_debug,
     log_trace, log_error, print_module_header, print_finding,
@@ -65,7 +66,7 @@ def scan(config: ScanConfig) -> ModuleResult:
         cve=CVE_ID,
         title=CVE_INFO["title"],
         severity=CVE_INFO["severity"],
-        status="NOT VULNERABLE",
+        status=ScanStatus.SAFE,
     )
 
     print_module_header(CVE_ID, CVE_INFO["title"], CVE_INFO["severity"])
@@ -93,7 +94,7 @@ def scan(config: ScanConfig) -> ModuleResult:
 
     if not baseline_times:
         log_error("Cannot establish baseline — target unreachable")
-        result.status = "ERROR"
+        result.status=ScanStatus.ERROR
         result.error = "Target unreachable"
         return result
 
@@ -153,7 +154,7 @@ def scan(config: ScanConfig) -> ModuleResult:
                     result.add_finding(Finding(
                         cve=CVE_ID, severity="HIGH",
                         title="DoS Indicator: Excessive Response Time",
-                        status="VULNERABLE", detail=detail,
+                        status=ScanStatus.VULNERABLE, detail=detail,
                         evidence=evidence,
                     ))
 
@@ -175,7 +176,7 @@ def scan(config: ScanConfig) -> ModuleResult:
                     result.add_finding(Finding(
                         cve=CVE_ID, severity="MEDIUM",
                         title="DoS Indicator: Anomalous Response Time",
-                        status="VULNERABLE", detail=detail,
+                        status=ScanStatus.VULNERABLE, detail=detail,
                         evidence=evidence,
                     ))
 
@@ -185,7 +186,7 @@ def scan(config: ScanConfig) -> ModuleResult:
                 result.add_finding(Finding(
                     cve=CVE_ID, severity="HIGH",
                     title="DoS Indicator: Request Timeout",
-                    status="VULNERABLE", detail=detail,
+                    status=ScanStatus.VULNERABLE, detail=detail,
                     evidence={"path": path[:200], "description": desc, "timeout": f"{config.timeout}s"},
                 ))
 
@@ -225,7 +226,7 @@ def scan(config: ScanConfig) -> ModuleResult:
                     result.add_finding(Finding(
                         cve=CVE_ID, severity="MEDIUM",
                         title="DoS Indicator: Heavy Header Processing",
-                        status="VULNERABLE", detail=detail,
+                        status=ScanStatus.VULNERABLE, detail=detail,
                         evidence={
                             "header": header_name,
                             "response_time": f"{elapsed:.3f}s",
@@ -239,7 +240,7 @@ def scan(config: ScanConfig) -> ModuleResult:
                 result.add_finding(Finding(
                     cve=CVE_ID, severity="MEDIUM",
                     title="DoS Indicator: Header Timeout",
-                    status="VULNERABLE", detail=detail,
+                    status=ScanStatus.VULNERABLE, detail=detail,
                     evidence={"header": header_name},
                 ))
 

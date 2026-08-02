@@ -27,8 +27,9 @@ Severity       : High
 import re
 import requests
 
-from core.config import ScanConfig, CVE_DATABASE, check_vuln_status
-from core.reporter import ModuleResult, Finding
+from core.config import ScanConfig
+from core.cve_database import CVE_DATABASE, check_vuln_status
+from core.reporter import ModuleResult, Finding, ScanStatus
 from core.output import (
     log_info, log_success, log_warning, log_debug, log_error, print_finding,
 )
@@ -120,7 +121,7 @@ def scan(config: ScanConfig) -> ModuleResult:
         cve=CVE_ID,
         title=CVE_INFO["title"],
         severity=CVE_INFO["severity"],
-        status="NOT VULNERABLE",
+        status=ScanStatus.SAFE,
     )
 
     session = config.create_session()
@@ -188,7 +189,7 @@ def scan(config: ScanConfig) -> ModuleResult:
         cve=CVE_ID,
         severity=CVE_INFO["severity"],
         title="SSRF via rewrites()/redirects() Hostname Injection",
-        status="VULNERABLE",
+        status=ScanStatus.VULNERABLE,
         detail=detail,
         evidence=evidence,
         confidence=confidence,

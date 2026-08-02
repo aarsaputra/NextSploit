@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 NextSploit — Next.js Vulnerability Scanner & Exploit Tool
-Version 2.2.0
+Version 2.3.0
 
 Unified tool combining multiple Next.js CVE scanners:
   - CVE-2025-29927: Middleware Authorization Bypass
@@ -35,7 +35,7 @@ from core.config import ScanConfig, CVE_DATABASE
 from core.output import (
     set_verbosity, log_info, log_success,
     log_warning, log_error, log_critical, print_section,
-    print_summary_table, console,
+    print_summary_table, console, print_module_header,
 )
 from core.reporter import ScanReport, ModuleResult, get_domain
 from modules import MODULE_REGISTRY
@@ -83,11 +83,6 @@ Examples:
 
     # ─── Scan Mode ───────────────────────────────────────────────────────────
     scan_group = parser.add_argument_group("Scan Mode")
-    scan_group.add_argument(
-        "--auto",
-        action="store_true",
-        help="Auto-run only modules applicable to the detected Next.js version (Default)",
-    )
     scan_group.add_argument(
         "--all",
         action="store_true",
@@ -399,6 +394,16 @@ def scan_target(target: str, config: ScanConfig, run_all: bool, cve_args: str, r
     for mod_id in modules_to_run:
         config.reset_request_counters()
         config.current_module_id = mod_id
+
+        # Centralized module header panel
+        mod_info = MODULE_REGISTRY.get(mod_id)
+        if mod_info:
+            cve_name = mod_info["name"]
+            cve_title = mod_info["title"]
+            cve_db_entry = CVE_DATABASE.get(cve_name)
+            severity = cve_db_entry.get("severity", "HIGH") if cve_db_entry else "HIGH"
+            print_module_header(cve_name, cve_title, severity)
+
         mod_result = run_module(mod_id, config)
 
         # Retrieve request statistics and calculate WAF noise
@@ -523,22 +528,25 @@ def main() -> None:
         os.makedirs(config.output_dir, exist_ok=True)
         
         # Run execution pipeline
-        report = scan_target(target_url, config, run_all, cve_args, run_fingerprint)
+        try:
+            report = scan_target(target_url, config, run_all, cve_args, run_fingerprint)
 
-        # Output handling
-        output_path = config.output_file
-        
-        if not output_path:
-            # Auto-generate a report in the target directory
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            output_path = f"scan_{domain}_{timestamp}.json"
-        elif len(targets) > 1:
-            # Auto-append target name to prevent overwriting in multi-target scans
-            ext = os.path.splitext(output_path)[1] or ".json"
-            base = os.path.splitext(output_path)[0]
-            output_path = f"{base}_{domain}{ext}"
+            # Output handling
+            output_path = config.output_file
             
-        report.save(output_path)
+            if not output_path:
+                # Auto-generate a report in the target directory
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                output_path = f"scan_{domain}_{timestamp}.json"
+            elif len(targets) > 1:
+                # Auto-append target name to prevent overwriting in multi-target scans
+                ext = os.path.splitext(output_path)[1] or ".json"
+                base = os.path.splitext(output_path)[0]
+                output_path = f"{base}_{domain}{ext}"
+                
+            report.save(output_path)
+        finally:
+            config.close()
 
     log_info(f"Finished all scans at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     console.print(f"\n[dim]─── {APP_NAME} v{APP_VERSION} | @{APP_AUTHOR} | Based on work by @AnonKryptiQuz ───[/dim]\n")

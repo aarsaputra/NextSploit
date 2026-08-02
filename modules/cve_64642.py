@@ -24,8 +24,9 @@ Severity       : High
 import re
 import requests
 
-from core.config import ScanConfig, CVE_DATABASE, check_vuln_status
-from core.reporter import ModuleResult, Finding
+from core.config import ScanConfig
+from core.cve_database import CVE_DATABASE, check_vuln_status
+from core.reporter import ModuleResult, Finding, ScanStatus
 from core.output import (
     log_info, log_success, log_warning, log_debug, log_error, print_finding,
 )
@@ -101,12 +102,12 @@ def scan(config: ScanConfig) -> ModuleResult:
         cve=CVE_ID,
         title=CVE_INFO["title"],
         severity=CVE_INFO["severity"],
-        status="NOT VULNERABLE",
+        status=ScanStatus.SAFE,
     )
 
     # Precondition: App Router required
     if not config.has_app_router():
-        result.status = "NOT_APPLICABLE"
+        result.status=ScanStatus.NOT_APPLICABLE
         log_info(f"[{CVE_ID}] Pages Router detected — skipping (App Router only).")
         return result
 
@@ -147,7 +148,7 @@ def scan(config: ScanConfig) -> ModuleResult:
 
     # If preconditions cannot be confirmed from black-box — set INCONCLUSIVE
     if not preconditions_confirmed:
-        result.status = "INCONCLUSIVE"
+        result.status=ScanStatus.INCONCLUSIVE
         result.confidence = 0.30
         detail = (
             f"[{CVE_ID}] Could not confirm Turbopack build or single-locale i18n from "
@@ -159,7 +160,7 @@ def scan(config: ScanConfig) -> ModuleResult:
             cve=CVE_ID,
             severity=CVE_INFO["severity"],
             title="Middleware Bypass (Turbopack + i18n) — Preconditions Unconfirmed",
-            status="INCONCLUSIVE",
+            status=ScanStatus.INCONCLUSIVE,
             detail=detail,
             evidence={
                 "turbopack_detected": turbopack_detected,
@@ -211,7 +212,7 @@ def scan(config: ScanConfig) -> ModuleResult:
         cve=CVE_ID,
         severity=CVE_INFO["severity"],
         title="Middleware Bypass — Turbopack + Single-Locale i18n",
-        status="VULNERABLE",
+        status=ScanStatus.VULNERABLE,
         detail=detail,
         evidence=evidence,
         confidence=confidence,
