@@ -9,7 +9,7 @@ Framework ini dibangun berdasarkan konsep asli dari **[AnonKryptiQuz/NextSploit]
 
 ## 🚀 **Fitur**
 
-- **🔍 Deteksi Otomatis Versi Next.js & Build ID**: Pemindai aktif dan pasif merayapi aset Next.js untuk mendapatkan Build ID asli dan Server Action ID yang aktif.
+- **🔍 Deteksi Otomatis Versi Next.js & Build ID**: Pemindai aktif dan pasif merayapi aset Next.js untuk mendapatkan Build ID asli dan Server Action ID yang aktif. Kini dilengkapi dengan normalisasi HTML (decoding stream payload RSC), pengurutan prioritas chunk JS utama, dan peningkatan kedalaman analisis hingga 15 JS chunks untuk mendeteksi versi secara presisi pada arsitektur App Router.
 - **🛡️ Penilaian Multi-Kerentanan**:
   - **CVE-2025-29927 (Middleware Auth Bypass)**: Mendeteksi dan memvisualisasikan bypass autentikasi middleware.
   - **CVE-2025-66478 (React2Shell RCE)**: Menguji bug deserialisasi RSC Flight Protocol pada sisi server (CVSS 10.0).
@@ -24,7 +24,7 @@ Framework ini dibangun berdasarkan konsep asli dari **[AnonKryptiQuz/NextSploit]
   - **CVE-2026-23864 (RSC Memory Exhaustion DoS)**: Menguji crash OOM melalui amplifikasi token `$K` FormData pada React Flight protocol. CVSS 7.5. Mempengaruhi 15.5.0–15.5.9. Fix: 15.5.10.
   - **GHSA-mg66-mrh9-m8jx (PPR/Cache Components Deadlock DoS)**: Mendeteksi deadlock connection pool yang dipicu header `Next-Resume: 1` pada aplikasi dengan PPR aktif. Fix: 15.5.16.
   - **CVE-2026-45109 (Middleware Bypass via Turbopack)**: Follow-up perbaikan tidak lengkap dari CVE-2026-44575. Mempengaruhi build Turbopack pada 15.5.16–15.5.17. Fix: 15.5.18.
-- **⚖️ Pengurangan FP & Skor Confidence**: Memperkenalkan perbandingan baseline respons awal untuk menyaring perbedaan dinamis pada script analitik, serta menilai temuan dalam skala `0.0` - `1.0`.
+- **⚖️ Pengurangan FP & Skor Confidence**: Memperkenalkan perbandingan baseline respons awal untuk menyaring perbedaan dinamis pada script analitik, serta menilai temuan dalam skala `0.0` - `1.0`. Modul `HEADER-FUZZER` sekarang otomatis mengabaikan rute dengan baseline `404` untuk menghilangkan temuan false-positive pada jalur non-existent.
 - **🌐 Otomasi Chaining Browser**: Mengintegrasikan Browser Exploit Engine milik AnonKryptiQuz untuk meluncurkan jendela Chrome yang dikendalikan oleh Selenium dengan header bypass yang telah dikonfigurasi melalui CDP.
 - **📡 Laporan Multiformat & Self-Update**: Renders temuan secara instan ke Rich CLI, mendukung pengecekan pembaruan via GitHub API, serta fitur auto-updater `--update`.
 
@@ -188,6 +188,8 @@ NextSploit menjalankan pipeline multi-fase yang terstruktur pada setiap sesi pem
 
 Sinyal yang dikumpulkan: **versi Next.js**, **Build ID**, **Server Action ID aktif** (dari tag `<script>` atau echo header `Next-Action`).
 
+**Peningkatan**: Menggunakan normalisasi HTML untuk menangani escaped slashes (`\/` menjadi `/`) pada RSC payloads, prioritas pemindaian chunk penting (`framework`, `webpack`, `main`), kedalaman pemindaian hingga 15 chunks, dan peningkatan regex versi minified serta pre-release (`canary`, `rc`).
+
 ### **Fase 3 — Matriks Kerentanan Versi**
 - Membandingkan versi yang terdeteksi dengan `CVE_DATABASE` di `core/config.py`.
 - Menggunakan perbandingan tuple integer (`(14, 2, 10)` vs `(14, 2, 25)`) untuk mengklasifikasikan setiap CVE:
@@ -244,6 +246,7 @@ Pemeriksaan FP Engine (`core/fp_engine.py`):
 - **Diff hash baseline**: Respons harus berbeda dari *baseline* GET (tidak hanya mengembalikan HTML homepage yang sama).
 - **Deteksi soft-404**: Respons yang diawali `<!doctype html>` pada endpoint JSON/RSC dibuang.
 - **Tanda tangan blokir WAF**: `432 whaleguard block`, `403 Forbidden` dengan body pendek, tantangan Cloudflare `__cf_chl` — ini dilewati tanpa ditandai.
+- **Eksklusi Rute 404**: `HEADER-FUZZER` otomatis mengabaikan rute yang mengembalikan status `404 Not Found` pada baseline, meniadakan temuan false-positive akibat respons prefetch bawaan Next.js pada endpoint non-existent.
 - **Rasio noise**: Jika > 80% probe pada satu modul menghasilkan respons anomali yang sama, temuan diturunkan ke `INCONCLUSIVE` (skenario WAF massal seperti CVE-2025-29927 dengan 89% noise).
 
 ### **Fase 7 — Pembuatan Laporan** (`core/reporter.py`)

@@ -203,17 +203,19 @@ def fingerprint(config: ScanConfig) -> dict:
         return result
 
     page_text = r.text
+    # Normalize escaped slashes (e.g. from inline scripts / RSC payloads)
+    normalized_page_text = page_text.replace('\\/', '/')
 
-    # Extract all JS and CSS chunks from page source
-    js_chunk_paths = list(set(re.findall(r'(/_next/static/chunks/[^\s"\']+\.js)', page_text)))
-    css_chunk_paths = list(set(re.findall(r'(/_next/static/css/[^\s"\']+\.css)', page_text)))
+    # Extract all JS and CSS chunks from page source (capturing those in inline scripts)
+    js_chunk_paths = list(set(re.findall(r'(/_next/static/[^\s"\'\\{}()<>]+.js)', normalized_page_text)))
+    css_chunk_paths = list(set(re.findall(r'(/_next/static/[^\s"\'\\{}()<>]+.css)', normalized_page_text)))
     config.discovered_js_chunks = js_chunk_paths
     config.discovered_css_chunks = css_chunk_paths
 
     # Simple router type deduction from page text
-    if "/_next/static/chunks/app/" in page_text:
+    if "/_next/static/chunks/app/" in normalized_page_text or "/_next/static/css/app/" in normalized_page_text:
         config.detected_router_type = "app"
-    elif "/_next/static/chunks/pages/" in page_text:
+    elif "/_next/static/chunks/pages/" in normalized_page_text or "/_next/static/css/pages/" in normalized_page_text:
         config.detected_router_type = "pages"
 
     # Log hosting infrastructure
@@ -358,7 +360,27 @@ def fingerprint(config: ScanConfig) -> dict:
     # ─── Step 6: Version detection from JS chunks ────────────────────────
     if not result["version"]:
         log_info("Attempting version detection from JS chunks...")
-        for chunk_path in js_chunk_paths[:5]:
+
+        # Prioritize chunks that likely contain framework/version information
+        def chunk_priority(path: str) -> int:
+            path_lower = path.lower()
+            if "framework" in path_lower:
+                return 0
+            if "main" in path_lower:
+                return 1
+            if "webpack" in path_lower:
+                return 2
+            if "core" in path_lower:
+                return 3
+            if "layout" in path_lower:
+                return 4
+            if "_app" in path_lower:
+                return 5
+            return 10
+
+        sorted_js_chunks = sorted(js_chunk_paths, key=chunk_priority)
+
+        for chunk_path in sorted_js_chunks[:15]:
             try:
                 config.throttle()
                 r3 = session.get(f"{target}{chunk_path}", timeout=config.timeout)
@@ -366,9 +388,10 @@ def fingerprint(config: ScanConfig) -> dict:
                 if r3.status_code == 200:
                     js_chunks_to_scan.append((chunk_path, r3.text))
                     patterns = [
-                        r'version["\s:=]+["\'](\d+\.\d+\.\d+)["\']',
-                        r'Next\.js\s+(\d+\.\d+\.\d+)',
-                        r'nextjs/(\d+\.\d+\.\d+)',
+                        r'(?:"version"|\'version\'|version)\s*[:=]\s*["\'](\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?)["\']',
+                        r'Next\.js\s*v?(\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?\b)',
+                        r'nextjs/(\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?\b)',
+                        r'window\.next\s*=\s*\{\s*version\s*:\s*["\'](\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?)["\']',
                     ]
                     for pat in patterns:
                         m = re.search(pat, r3.text)

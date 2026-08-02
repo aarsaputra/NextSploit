@@ -63,6 +63,9 @@ class HeaderFuzzer:
                 base = self.session.get(url, timeout=self.c.timeout, allow_redirects=False)
                 if is_waf_block(base):
                     continue
+                # If baseline is 404, there is no route to bypass, so ignore to avoid prefetch false positives
+                if base.status_code == 404:
+                    continue
                 base_sig = (base.status_code, hashlib.md5(base.content).hexdigest())
             except Exception:
                 continue

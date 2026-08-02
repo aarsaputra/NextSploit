@@ -9,13 +9,13 @@ This framework builds upon the original concept of **[AnonKryptiQuz/NextSploit](
 
 ## 🚀 **Features**
 
-- **🔍 Automated Next.js Version & Build ID Detection**: Centralized `VersionState` aggregator crawls Next.js assets to fetch actual Build IDs, active Server Action IDs, and version signals across headers, build IDs, chunk bundles, and error leaks.
+- **🔍 Automated Next.js Version & Build ID Detection**: Centralized `VersionState` aggregator crawls Next.js assets to fetch actual Build IDs, active Server Action IDs, and version signals. Now features HTML normalization (RSC payload stream decoding), priority chunk sorting, and a depth limit of 15 JS chunks to accurately identify versions on modern App Router sites.
 - **🛡️ Multi-CVE Vulnerability Assessment (29 Modules)**:
   - **Batch #1 (Mei 2026)**: CVE-2026-44573 (Pages i18n Bypass), CVE-2026-44578 (WebSocket SSRF), GHSA-mg66-mrh9-m8jx (PPR Deadlock DoS).
   - **Batch #2 (Juli 2026)**: CVE-2026-64641 (DoS SA CPU Exhaustion), CVE-2026-64642 (Middleware Bypass Turbopack+i18n), CVE-2026-64645 (SSRF Rewrites/Redirects), CVE-2026-64649 (SSRF SA Host Header), CVE-2026-64644 (DoS SVG Image API), CVE-2026-64646 (Edge SA Unbounded Payload), CVE-2026-64643 (SA Action ID Leak), CVE-2026-64648 (Fetch Cache Confusion), CVE-2026-64647 (Invalid UTF-8 Cache Confusion).
 - **🔒 Active / Passive Mode Safety**: Potentially intrusive modules (OOB SSRF, shared cache differential tests) run in **passive mode by default**. Active execution requires explicit `--confirm-active` opt-in.
 - **⚡ Rate Limiting & Delay**: Built-in `--rate-limit` (req/sec) and `--delay` (seconds between requests) to prevent target overloading and evade WAF throttling.
-- **⚖️ FP Reduction & Confidence Scoring**: Precondition helpers (`has_app_router()`, `has_active_server_actions()`) skip non-applicable targets with `NOT_APPLICABLE` or `INCONCLUSIVE` statuses.
+- **⚖️ FP Reduction & Confidence Scoring**: Precondition helpers (`has_app_router()`, `has_active_server_actions()`) skip non-applicable targets. The tool automatically excludes non-existent `404` routes from the header fuzzer to prevent false positive prefetch responses.
 - **📊 JSON Report Schema v2.3**: `REPORT_SCHEMA_VERSION` 2.3 supports 5 status values (`VULNERABLE`, `NOT VULNERABLE`, `NOT_APPLICABLE`, `INCONCLUSIVE`, `ERROR`) for seamless CI/CD integration.
 - **🌐 Automated Chrome Browser Chaining**: Integrates AnonKryptiQuz's Chrome Browser Exploit Engine to launch a Selenium-controlled Chrome window with preconfigured bypass headers.
 
@@ -198,6 +198,8 @@ The fingerprinter uses **5 independent signal sources** and aggregates them in a
 
 Collected signals: **Next.js version**, **Build ID**, **active Server Action IDs** (from `<script>` tags or `Next-Action` header echoes).
 
+**Enhancements**: Uses HTML normalization to resolve escaped slash characters (`\/` to `/`) in inline RSC script streams, prioritizing main script chunks (`framework`, `webpack`, `main`), scanning up to 15 chunks (increased from 5), and applying robust regex mappings to support minified formats and pre-releases.
+
 ### **Phase 3 — Version Vulnerability Matrix**
 - Compares detected version against `CVE_DATABASE` in `core/config.py`.
 - Uses integer-tuple comparison (`(14, 2, 10)` vs `(14, 2, 25)`) to classify each CVE as:
@@ -254,6 +256,7 @@ FP Engine checks (`core/fp_engine.py`):
 - **Baseline hash diff**: Response must differ from a GET baseline (not just return same HTML homepage).
 - **Soft-404 detection**: Responses starting with `<!doctype html>` on JSON/RSC endpoints are discarded.
 - **WAF block signatures**: `432 whaleguard block`, `403 Forbidden` with short body, Cloudflare `__cf_chl` challenge — these are skipped without flagging.
+- **404 Route Exclusion**: `HEADER-FUZZER` ignores any routes that return `404 Not Found` in the baseline request, eliminating false positives caused by Next.js's default prefetch responses on non-existent paths.
 - **Noise ratio**: If > 80% of probes on a module return the same anomalous response, findings are downgraded to `INCONCLUSIVE` (mass-WAF scenario like CVE-2025-29927 with 89% noise).
 
 ### **Phase 7 — Report Generation** (`core/reporter.py`)
