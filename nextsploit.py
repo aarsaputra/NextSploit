@@ -181,6 +181,32 @@ Examples:
         action="store_true",
         help="Trigger Selenium browser exploit on critical bypass detection",
     )
+    exploit_group.add_argument(
+        "--confirm-active",
+        dest="confirm_active",
+        action="store_true",
+        help=(
+            "Allow modules that may touch external hosts (OOB SSRF) or modify "
+            "shared cache/CDN state. Not active by default. Use only on targets "
+            "you own and in isolated test environments."
+        ),
+    )
+
+    # ─── Rate Limiting ────────────────────────────────────────────────────────
+    rate_group = parser.add_argument_group("Rate Limiting")
+    rate_group.add_argument(
+        "--delay",
+        type=float,
+        default=0.0,
+        help="Seconds to wait between requests (default: 0)",
+    )
+    rate_group.add_argument(
+        "--rate-limit",
+        dest="rate_limit",
+        type=int,
+        default=0,
+        help="Max requests per second, 0 = unlimited (default: 0)",
+    )
 
     return parser.parse_args()
 
@@ -216,7 +242,10 @@ def build_scan_config(target: str, args: argparse.Namespace, file_cfg: Dict[str,
     verify_ssl = file_cfg.get("verify_ssl", not args.no_verify) if not args.no_verify else False
     browser_exploit = getattr(args, "browser", False) or file_cfg.get("browser", False)
     waf_bypass = getattr(args, "waf_bypass", False) or file_cfg.get("waf_bypass", False)
-    
+    confirm_active = getattr(args, "confirm_active", False) or file_cfg.get("confirm_active", False)
+    delay = getattr(args, "delay", 0.0)
+    rate_limit = getattr(args, "rate_limit", 0)
+
     config = ScanConfig(
         target=target,
         timeout=timeout,
@@ -227,10 +256,13 @@ def build_scan_config(target: str, args: argparse.Namespace, file_cfg: Dict[str,
         output_file=output,
         browser_exploit=browser_exploit,
         waf_bypass=waf_bypass,
+        confirm_active=confirm_active,
+        delay=delay,
+        rate_limit=rate_limit,
     )
     if user_agent:
         config.user_agent = user_agent
-        
+
     return config
 
 
