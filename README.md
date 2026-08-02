@@ -154,6 +154,117 @@ NextSploit/
 
 ---
 
+## 🔄 **Scan Workflow & Technical Phases**
+
+NextSploit executes a structured, multi-phase pipeline on every scan run. Below is the detailed workflow of each phase and the techniques used.
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                     NextSploit Scan Pipeline                        │
+│                                                                     │
+│  [1] Target Normalization ──► [2] Fingerprinting ──► [3] Version   │
+│                                                          Matrix     │
+│                                     │                    │          │
+│                                     ▼                    ▼          │
+│                              [4] Module Selection ◄── Context      │
+│                                     │                               │
+│                                     ▼                               │
+│                           [5] Active / Passive Scan                 │
+│                                     │                               │
+│                                     ▼                               │
+│                        [6] FP Reduction & Confidence                │
+│                                     │                               │
+│                                     ▼                               │
+│                         [7] Report Generation                       │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### **Phase 1 — Target Normalization**
+- Strips trailing slashes, normalizes scheme (`http://` → `https://` if needed).
+- Creates a persistent `requests.Session` shared across all modules.
+- Applies common browser-mimicking headers: `User-Agent` (Chrome/125), `Accept-Language`, `Accept-Encoding`, `Connection: keep-alive`.
+- Loads cookies from the initial handshake response (WAF challenge tokens like Cloudflare `cf_clearance`, Akamai session cookies, etc.) into the session automatically.
+
+### **Phase 2 — Multi-Strategy Fingerprinting** (`modules/fingerprint.py`)
+The fingerprinter uses **5 independent signal sources** and aggregates them in a thread-safe `VersionState`:
+
+| Signal Source | Technique | Example |
+|:---|:---|:---|
+| **HTTP Header** | Reads `X-Powered-By: Next.js` | Detects framework presence |
+| **`__NEXT_DATA__`** | Parses inline JSON from HTML `<script>` | Extracts `buildId`, `runtimeConfig` |
+| **Static Chunk URLs** | Scans `/_next/static/<buildId>/` path patterns via regex | Extracts Build ID from CDN/Akamai URLs |
+| **Bundle Leak** | Fetches `/_next/static/chunks/main.js` and scans for version string | `"next":"14.2.10"` |
+| **Error Page Leak** | Triggers `/_next/data/<random>/404.json` — Next.js reveals version in error body | `"nextVersion":"14.2.10"` |
+
+Collected signals: **Next.js version**, **Build ID**, **active Server Action IDs** (from `<script>` tags or `Next-Action` header echoes).
+
+### **Phase 3 — Version Vulnerability Matrix**
+- Compares detected version against `CVE_DATABASE` in `core/config.py`.
+- Uses integer-tuple comparison (`(14, 2, 10)` vs `(14, 2, 25)`) to classify each CVE as:
+  - `VULNERABLE` — detected version is below the fix version
+  - `PATCHED` — detected version is at or above the fix version
+  - `UNKNOWN` — version could not be determined (triggers active-probe fallback)
+- Multi-branch bounds supported: e.g., `>= 15.0.0, < 15.5.21 | >= 16.0.0, < 16.2.11`.
+
+### **Phase 4 — Module Selection & Precondition Checks**
+Before executing any module, the framework evaluates **preconditions** to avoid false positives and wasted requests:
+
+| Precondition Helper | Checks | Skip Reason if False |
+|:---|:---|:---|
+| `has_app_router()` | Probes `/_next/static/chunks/app/` | Sets `NOT_APPLICABLE` for App Router CVEs |
+| `has_active_server_actions()` | Scans for `Next-Action` IDs in page source | Skips SA-dependent modules |
+| `has_turbopack()` | Checks `x-turbopack` header or bundle naming pattern | Skips Turbopack-specific CVEs |
+| `has_ppr()` | Probes `Next-Resume: 1` header differential | Skips PPR-only DoS modules |
+| Version range check | `check_vuln_status()` against CVE_DATABASE | Returns `NOT_APPLICABLE` if already patched |
+
+### **Phase 5 — Active / Passive Scan Execution**
+
+Each module runs in one of two modes:
+
+#### 🔒 Passive Mode (Default)
+- **Version-based detection only**: Reports `VULNERABLE` based on confirmed version range, without touching sensitive endpoints.
+- **Structural probing**: Sends lightweight, non-mutating GET requests to observe response behavior (HTTP status, Content-Type, body size).
+- **RSC Module (5 sub-phases)**:
+  1. **RSC Endpoint Discovery** — Probes `/_next/static/chunks/` paths, scans for App Router layout files.
+  2. **Server Action Probe** — POST with `Next-Action: <id>` header; flags only if `HTTP 200` AND `size_diff > 500 bytes` from GET baseline (ignores `4xx`, WAF blocks like `432`).
+  3. **Multipart Server Action** — POST `multipart/form-data` with `$ACTION_ID_0` field; flags only on `HTTP 200`.
+  4. **RSC Data Extraction** — Fetches `/_next/data/<buildId>/*.json`; soft-404 detection filters HTML responses masquerading as 200.
+  5. **Prototype Pollution Differential** — Sends `__proto__` payloads; validates using `core/fp_engine.validate_prototype_pollution()` before flagging.
+
+#### ⚡ Active Mode (`--confirm-active` required)
+- **OOB SSRF probes**: Sends requests with attacker-controlled `Host:`, `X-Forwarded-Host:`, or `Location:` headers pointing to an external collaborator URL.
+- **Cache differential tests**: Writes to shared CDN cache paths — only on explicit opt-in to avoid accidental poisoning of production caches.
+- **Intrusive timing probes**: Sends oversized payloads to measure response delay (DoS feasibility analysis).
+
+#### Rate Limiting & WAF Evasion
+- `--rate-limit <N>`: Token-bucket limiter caps outbound requests/sec across all modules.
+- `--delay <seconds>`: Fixed inter-request delay between probe sends.
+- Built-in jitter: ±15% random delay added to `--delay` value to reduce WAF pattern detection.
+- Session cookie persistence: All `Set-Cookie` responses are stored in the shared session and replayed on subsequent requests (effective against WAF challenge flows).
+
+### **Phase 6 — False Positive Reduction & Confidence Scoring**
+Every `Finding` object carries two confidence values:
+
+| Field | Description | Range |
+|:---|:---|:---:|
+| `confidence` | Module-assigned score based on evidence quality | `0.0 – 1.0` |
+| `computed_confidence` | Adjusted score after `FP Engine` analysis | `0.0 – 1.0` |
+
+FP Engine checks (`core/fp_engine.py`):
+- **Baseline hash diff**: Response must differ from a GET baseline (not just return same HTML homepage).
+- **Soft-404 detection**: Responses starting with `<!doctype html>` on JSON/RSC endpoints are discarded.
+- **WAF block signatures**: `432 whaleguard block`, `403 Forbidden` with short body, Cloudflare `__cf_chl` challenge — these are skipped without flagging.
+- **Noise ratio**: If > 80% of probes on a module return the same anomalous response, findings are downgraded to `INCONCLUSIVE` (mass-WAF scenario like CVE-2025-29927 with 89% noise).
+
+### **Phase 7 — Report Generation** (`core/reporter.py`)
+- Reports saved to `reports/<domain>/scan_<domain>_<timestamp>.json`.
+- Schema version `2.3` with 5 status values: `VULNERABLE`, `NOT VULNERABLE`, `NOT_APPLICABLE`, `INCONCLUSIVE`, `ERROR`.
+- Per-module: `finding_count`, `noise_ratio`, `total_requests`, individual `Finding` objects with `evidence` dict and `confidence` scores.
+- Raw HTTP dumps (request + response) saved as `reports/<domain>/raw/<module>_req_<hash>.txt` for manual review.
+- Summary block: `vulnerable`, `not_vulnerable`, `not_applicable`, `inconclusive`, `errors` counts.
+
+---
+
 ## 🧪 **Available Scanning Modules (29 Modules)**
 
 | Module CLI Key (`--cve`) | CVE / ID | Vulnerability Type | Severity | Fix Version (15.x / 16.x) | Execution Mode |

@@ -142,14 +142,119 @@ NextSploit/
 
 ```
 
-### **Bagaimana Orkestrator Bekerja:**
-1. **Normalisasi Target**: NextSploit memformat URL target dan mengonfigurasi sesi HTTP global.
-2. **Fingerprinting Wajib**: Melakukan perayapan aset statis (`/_next/static/chunks/`) untuk mengambil Build ID serta memeriksa header spesifik server Next.js.
-3. **Penyebaran Context**: Build ID dan Server Action ID yang ditemukan akan dibungkus di dalam objek `ScanConfig` agar semua modul dapat mengaksesnya secara runtime.
-4. **Eksekusi Pemindaian**: Modul yang terpilih diimpor secara dinamis dan dieksekusi dengan fungsi penangan `scan(config)`.
-5. **Kalkulasi Confidence**: Setiap temuan akan dianalisis tingkat akurasinya dalam skala 0.0 - 1.0 sebelum diekspor ke format laporan.
+---
+
+## 🔄 **Alur Kerja Pemindaian & Fase Teknis**
+
+NextSploit menjalankan pipeline multi-fase yang terstruktur pada setiap sesi pemindaian. Berikut adalah alur kerja lengkap setiap fase dan teknik yang digunakan.
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                   Pipeline Pemindaian NextSploit                    │
+│                                                                     │
+│  [1] Normalisasi Target ──► [2] Fingerprinting ──► [3] Matriks     │
+│                                                         Versi       │
+│                                    │                    │           │
+│                                    ▼                    ▼           │
+│                         [4] Seleksi Modul ◄────── Konteks          │
+│                                    │                                │
+│                                    ▼                                │
+│                       [5] Pemindaian Aktif / Pasif                  │
+│                                    │                                │
+│                                    ▼                                │
+│                     [6] Reduksi FP & Skor Confidence               │
+│                                    │                                │
+│                                    ▼                                │
+│                        [7] Pembuatan Laporan                        │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### **Fase 1 — Normalisasi Target**
+- Menghapus trailing slash dan menormalkan skema URL (`http://` → `https://` jika diperlukan).
+- Membuat `requests.Session` persisten yang digunakan bersama oleh semua modul.
+- Menerapkan header yang meniru peramban asli: `User-Agent` (Chrome/125), `Accept-Language`, `Accept-Encoding`, `Connection: keep-alive`.
+- Menyimpan cookie dari respons *handshake* awal (token tantangan WAF seperti Cloudflare `cf_clearance`, cookie sesi Akamai, dll.) ke dalam sesi secara otomatis untuk permintaan berikutnya.
+
+### **Fase 2 — Fingerprinting Multi-Strategi** (`modules/fingerprint.py`)
+*Fingerprinter* menggunakan **5 sumber sinyal independen** dan mengagregasinya di `VersionState` yang aman dari *race condition*:
+
+| Sumber Sinyal | Teknik | Contoh |
+|:---|:---|:---|
+| **HTTP Header** | Membaca `X-Powered-By: Next.js` | Mendeteksi kehadiran framework |
+| **`__NEXT_DATA__`** | Mengurai JSON inline dari tag `<script>` di HTML | Mengekstrak `buildId`, `runtimeConfig` |
+| **URL Chunk Statis** | Memindai pola path `/_next/static/<buildId>/` via regex | Mengekstrak Build ID dari URL CDN/Akamai |
+| **Bundle Leak** | Mengunduh `/_next/static/chunks/main.js` dan mencari string versi | `"next":"14.2.10"` |
+| **Error Page Leak** | Memicu `/_next/data/<random>/404.json` — Next.js mengungkap versi di body error | `"nextVersion":"14.2.10"` |
+
+Sinyal yang dikumpulkan: **versi Next.js**, **Build ID**, **Server Action ID aktif** (dari tag `<script>` atau echo header `Next-Action`).
+
+### **Fase 3 — Matriks Kerentanan Versi**
+- Membandingkan versi yang terdeteksi dengan `CVE_DATABASE` di `core/config.py`.
+- Menggunakan perbandingan tuple integer (`(14, 2, 10)` vs `(14, 2, 25)`) untuk mengklasifikasikan setiap CVE:
+  - `VULNERABLE` — versi terdeteksi di bawah versi *fix*
+  - `PATCHED` — versi terdeteksi sama atau di atas versi *fix*
+  - `UNKNOWN` — versi tidak dapat ditentukan (memicu *active-probe fallback*)
+- Mendukung batas multi-cabang, misalnya: `>= 15.0.0, < 15.5.21 | >= 16.0.0, < 16.2.11`.
+
+### **Fase 4 — Seleksi Modul & Pemeriksaan Prasyarat**
+Sebelum menjalankan modul apa pun, framework mengevaluasi **prasyarat** untuk menghindari *false positive* dan permintaan yang tidak perlu:
+
+| Helper Prasyarat | Pemeriksaan | Alasan Lewati jika Gagal |
+|:---|:---|:---|
+| `has_app_router()` | Memeriksa `/_next/static/chunks/app/` | `NOT_APPLICABLE` untuk CVE App Router |
+| `has_active_server_actions()` | Memindai `Next-Action` ID di sumber halaman | Melewati modul bergantung Server Action |
+| `has_turbopack()` | Memeriksa header `x-turbopack` atau pola penamaan bundle | Melewati CVE khusus Turbopack |
+| `has_ppr()` | Memeriksa diferensial header `Next-Resume: 1` | Melewati modul DoS khusus PPR |
+| Cek rentang versi | `check_vuln_status()` terhadap CVE_DATABASE | `NOT_APPLICABLE` jika sudah dipatch |
+
+### **Fase 5 — Eksekusi Pemindaian Aktif / Pasif**
+
+Setiap modul berjalan dalam salah satu dari dua mode:
+
+#### 🔒 Mode Pasif (Default)
+- **Deteksi berbasis versi**: Melaporkan `VULNERABLE` berdasarkan rentang versi yang dikonfirmasi, tanpa menyentuh endpoint sensitif.
+- **Pemeriksaan struktural**: Mengirim permintaan GET ringan dan tidak merusak untuk mengamati perilaku respons (status HTTP, Content-Type, ukuran body).
+- **Modul RSC (5 sub-fase)**:
+  1. **Penemuan Endpoint RSC** — Memeriksa path `/_next/static/chunks/`, memindai file *layout* App Router.
+  2. **Probe Server Action** — POST dengan header `Next-Action: <id>`; hanya menandai jika `HTTP 200` DAN `size_diff > 500 bytes` dari *baseline* GET (mengabaikan `4xx`, blokir WAF seperti `432`).
+  3. **Server Action Multipart** — POST `multipart/form-data` dengan field `$ACTION_ID_0`; hanya menandai pada `HTTP 200`.
+  4. **Ekstraksi Data RSC** — Mengambil `/_next/data/<buildId>/*.json`; deteksi soft-404 menyaring respons HTML yang menyamar sebagai 200.
+  5. **Prototype Pollution Diferensial** — Mengirim payload `__proto__`; divalidasi menggunakan `core/fp_engine.validate_prototype_pollution()` sebelum ditandai.
+
+#### ⚡ Mode Aktif (perlu `--confirm-active`)
+- **Probe OOB SSRF**: Mengirim permintaan dengan header `Host:`, `X-Forwarded-Host:`, atau `Location:` yang dikendalikan penyerang yang mengarah ke URL *collaborator* eksternal.
+- **Uji diferensial cache**: Menulis ke path cache CDN bersama — hanya dengan *opt-in* eksplisit untuk menghindari keracunan cache produksi yang tidak disengaja.
+- **Probe *timing* intrusif**: Mengirim payload berukuran besar untuk mengukur penundaan respons (analisis kelayakan DoS).
+
+#### Rate Limiting & Penghindaran WAF
+- `--rate-limit <N>`: Pembatas *token-bucket* membatasi permintaan keluar per detik di semua modul.
+- `--delay <detik>`: Penundaan tetap antar pengiriman probe.
+- *Jitter* bawaan: Penundaan acak ±15% ditambahkan pada nilai `--delay` untuk mengurangi deteksi pola WAF.
+- Persistensi cookie sesi: Semua respons `Set-Cookie` disimpan dalam sesi bersama dan diputar ulang pada permintaan berikutnya (efektif untuk melewati alur tantangan WAF).
+
+### **Fase 6 — Reduksi False Positive & Skor Confidence**
+Setiap objek `Finding` memiliki dua nilai confidence:
+
+| Field | Deskripsi | Rentang |
+|:---|:---|:---:|
+| `confidence` | Skor yang ditetapkan modul berdasarkan kualitas bukti | `0.0 – 1.0` |
+| `computed_confidence` | Skor yang disesuaikan setelah analisis `FP Engine` | `0.0 – 1.0` |
+
+Pemeriksaan FP Engine (`core/fp_engine.py`):
+- **Diff hash baseline**: Respons harus berbeda dari *baseline* GET (tidak hanya mengembalikan HTML homepage yang sama).
+- **Deteksi soft-404**: Respons yang diawali `<!doctype html>` pada endpoint JSON/RSC dibuang.
+- **Tanda tangan blokir WAF**: `432 whaleguard block`, `403 Forbidden` dengan body pendek, tantangan Cloudflare `__cf_chl` — ini dilewati tanpa ditandai.
+- **Rasio noise**: Jika > 80% probe pada satu modul menghasilkan respons anomali yang sama, temuan diturunkan ke `INCONCLUSIVE` (skenario WAF massal seperti CVE-2025-29927 dengan 89% noise).
+
+### **Fase 7 — Pembuatan Laporan** (`core/reporter.py`)
+- Laporan disimpan ke `reports/<domain>/scan_<domain>_<timestamp>.json`.
+- Skema versi `2.3` dengan 5 nilai status: `VULNERABLE`, `NOT VULNERABLE`, `NOT_APPLICABLE`, `INCONCLUSIVE`, `ERROR`.
+- Per-modul: `finding_count`, `noise_ratio`, `total_requests`, objek `Finding` individual dengan dict `evidence` dan skor `confidence`.
+- Dump HTTP mentah (request + response) disimpan sebagai `reports/<domain>/raw/<modul>_req_<hash>.txt` untuk tinjauan manual.
+- Blok ringkasan: jumlah `vulnerable`, `not_vulnerable`, `not_applicable`, `inconclusive`, `errors`.
 
 ---
+
 
 ## 💻 **Panduan Ekstensi & Kustomisasi untuk Programmer**
 
