@@ -90,7 +90,16 @@ class ScanConfig:
     # — Safety kill-switch flags —
     skip_dos: bool = False         # --skip-dos: skip all DoS modules
     max_requests_per_module: int = 0   # --max-requests N (0 = unlimited)
+    max_duration: float = 0.0      # --max-duration N (seconds, 0 = unlimited)
+    max_findings: int = 0          # --max-findings N (0 = unlimited)
     noise_threshold: float = 0.8   # --noise-threshold (default 80%)
+
+    # — Extended Auth & OAST —
+    auth_json: Optional[str] = None       # --auth-json auth.json
+    auth_probe_url: str = "/api/me"       # --auth-probe /api/me
+    auth_mode: Optional[str] = None       # "cookie", "token", "form-login"
+    oast: Optional[object] = None         # Core OAST Server / Client instance
+    killswitch: Optional[object] = None   # Global KillSwitch instance
 
     # — Rate-limiting —
     delay: float = 0.0          # seconds between requests (--delay)
@@ -121,6 +130,14 @@ class ScanConfig:
         self._session = None
         from core.version_state import VersionState
         self._version_state = VersionState()
+        if self.killswitch is None:
+            from core.killswitch import KillSwitch
+            self.killswitch = KillSwitch(
+                max_requests=self.max_requests_per_module,
+                max_duration=self.max_duration,
+                max_findings=self.max_findings,
+                skip_dos=self.skip_dos,
+            )
 
     # ─── Version State ─────────────────────────────────────────────────────────────
 
@@ -146,6 +163,8 @@ class ScanConfig:
         """
         with self._counter_lock:
             self._total_requests += 1
+            if self.killswitch:
+                self.killswitch.count_request()
             if status_code in (403, 429, 503):
                 self._blocked_requests += 1
                 if response is not None:

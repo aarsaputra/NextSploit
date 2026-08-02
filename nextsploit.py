@@ -208,6 +208,19 @@ Examples:
             "Injected as Authorization header in all requests."
         ),
     )
+    auth_group.add_argument(
+        "--auth-json",
+        dest="auth_json",
+        metavar="FILE",
+        help="JSON file with login configuration (url, credentials, csrf_extract, cookie names)",
+    )
+    auth_group.add_argument(
+        "--auth-probe",
+        dest="auth_probe_url",
+        default="/api/me",
+        metavar="PATH",
+        help="URL path to validate session liveness (default: /api/me)",
+    )
 
     # ─── Rate Limiting ────────────────────────────────────────────────────────
     rate_group = parser.add_argument_group("Rate Limiting")
@@ -223,6 +236,12 @@ Examples:
         type=int,
         default=0,
         help="Max requests per second, 0 = unlimited (default: 0)",
+    )
+    rate_group.add_argument(
+        "--timing-mode",
+        dest="timing_mode",
+        action="store_true",
+        help="Fixed 0.2s spacing without jitter for accurate timing analysis",
     )
 
     # ─── Safety ──────────────────────────────────────────────────────────────
@@ -243,6 +262,22 @@ Examples:
         default=0,
         metavar="N",
         help="Abort a module after N total HTTP requests (0 = unlimited, default: 0)",
+    )
+    safety_group.add_argument(
+        "--max-duration",
+        dest="max_duration",
+        type=float,
+        default=0.0,
+        metavar="SECONDS",
+        help="Abort scan after N seconds (0 = unlimited, default: 0)",
+    )
+    safety_group.add_argument(
+        "--max-findings",
+        dest="max_findings",
+        type=int,
+        default=0,
+        metavar="N",
+        help="Abort scan after N vulnerability findings (0 = unlimited, default: 0)",
     )
     safety_group.add_argument(
         "--noise-threshold",
@@ -311,13 +346,21 @@ def build_scan_config(target: str, args: argparse.Namespace, file_cfg: Dict[str,
     # Auth
     auth_cookie = getattr(args, "auth_cookie", None) or file_cfg.get("auth_cookie", None)
     auth_token = getattr(args, "auth_token", None) or file_cfg.get("auth_token", None)
+    auth_json = getattr(args, "auth_json", None) or file_cfg.get("auth_json", None)
+    auth_probe_url = getattr(args, "auth_probe_url", "/api/me") or file_cfg.get("auth_probe_url", "/api/me")
 
-    # Safety
+    # Safety & Timing
     skip_dos = getattr(args, "skip_dos", False) or file_cfg.get("skip_dos", False)
     max_requests_per_module = getattr(args, "max_requests_per_module", 0) or file_cfg.get("max_requests_per_module", 0)
+    max_duration = getattr(args, "max_duration", 0.0) or file_cfg.get("max_duration", 0.0)
+    max_findings = getattr(args, "max_findings", 0) or file_cfg.get("max_findings", 0)
     noise_threshold = getattr(args, "noise_threshold", 0.8)
     if file_cfg.get("noise_threshold") is not None:
         noise_threshold = file_cfg["noise_threshold"]
+
+    if getattr(args, "timing_mode", False):
+        delay = 0.2
+        rate_limit = 0
 
     config = ScanConfig(
         target=target,
@@ -335,14 +378,19 @@ def build_scan_config(target: str, args: argparse.Namespace, file_cfg: Dict[str,
         save_raw_responses=save_raw_responses,
         auth_cookie=auth_cookie,
         auth_token=auth_token,
+        auth_json=auth_json,
+        auth_probe_url=auth_probe_url,
         skip_dos=skip_dos,
         max_requests_per_module=max_requests_per_module,
+        max_duration=max_duration,
+        max_findings=max_findings,
         noise_threshold=noise_threshold,
     )
     if user_agent:
         config.user_agent = user_agent
 
     return config
+
 
 
 def list_modules() -> None:
@@ -412,6 +460,12 @@ def scan_target(target: str, config: ScanConfig, run_all: bool, cve_args: str, r
         domain = get_domain(target)
         config.init_raw_dir(domain)
         log_info(f"[Evidence] Saving raw responses ({config.save_raw_responses}) to reports/{domain}/raw/")
+
+    # Init OAST callback listener if active mode is enabled
+    if config.confirm_active:
+        from core.oast import get_oast
+        get_oast(config)
+
 
     # ─── Fingerprint Phase ───────────────────────────────────────────────────
     fp_result = fingerprint(config)

@@ -95,4 +95,125 @@ def create_session(config) -> NextSploitSession:
     session.mount("https://", adapter)
     session.mount("http://",  adapter)
 
+    # ─── Auth JSON / Form Login handling ───────────────────────────────
+    if getattr(config, "auth_json", None):
+        load_auth(config, session)
+
     return session
+
+
+def _heuristic_csrf(html: str) -> str:
+    """Grab the first hidden input or token-like value as CSRF fallback."""
+    m = re.search(r'name=["\'](?:csrf|_token|authenticity_token|csrfmiddlewaretoken)["\'][^>]*value=["\']([^"\']+)["\']', html, re.I)
+    return m.group(1) if m else ""
+
+
+def _do_login(config, session, data: dict):
+    """Generic login flow: GET login page -> extract CSRF -> POST creds."""
+    headers = {"User-Agent": config.user_agent}
+    login_url = data.get("url", "")
+    if not login_url:
+        return
+
+    # 1. GET login page (harvest CSRF + any pre-login cookies)
+    try:
+        r = session.get(login_url, headers=headers, timeout=15)
+        if r.status_code not in (200, 302):
+            if config.verbosity >= 1:
+                sys.stderr.write(f"[session] Login page returned status {r.status_code}\n")
+    except Exception as e:
+        if config.verbosity >= 1:
+            sys.stderr.write(f"[session] Login GET error: {e}\n")
+        return
+
+    # 2. CSRF extraction
+    form = {}
+    sel = data.get("csrf_extract")
+    if sel:
+        m = re.search(rf'(?:name|id)=["\']{re.escape(sel)}["\'][^>]*value=["\']([^"\']+)["\']', r.text)
+        if m:
+            form[sel] = m.group(1)
+        else:
+            form[sel] = _heuristic_csrf(r.text)
+    else:
+        csrf_val = _heuristic_csrf(r.text)
+        if csrf_val:
+            form["_csrf"] = csrf_val
+
+    # 3. Fill credentials
+    uname_field = data.get("username_field", "email")
+    pword_field = data.get("password_field", "password")
+    form[uname_field] = data.get("username", "")
+    form[pword_field] = data.get("password", "")
+
+    # 4. POST credentials
+    try:
+        login_resp = session.post(login_url, data=form, headers=headers, allow_redirects=True, timeout=20)
+        cookies = {c.name: c.value for c in session.cookies}
+        expected = data.get("session_cookie_names", [])
+        if expected:
+            got = [c for c in expected if c in cookies]
+            if got:
+                if config.verbosity >= 1:
+                    sys.stderr.write(f"[session] Authenticated successfully (cookies: {got})\n")
+                config.auth_mode = "form-login"
+            else:
+                if config.verbosity >= 1:
+                    sys.stderr.write(f"[session] Login POST {login_resp.status_code} but missing expected cookies: {expected}\n")
+        elif login_resp.status_code in (200, 302):
+            config.auth_mode = "form-login"
+    except Exception as e:
+        if config.verbosity >= 1:
+            sys.stderr.write(f"[session] Login POST failed: {e}\n")
+
+
+def load_auth(config, session):
+    """Populate session with authentication from auth_json."""
+    if not getattr(config, "auth_json", None):
+        return
+
+    json_path = Path(config.auth_json)
+    if not json_path.exists():
+        if config.verbosity >= 1:
+            sys.stderr.write(f"[session] Auth JSON file not found: {json_path}\n")
+        return
+
+    try:
+        import json
+        data = json.loads(json_path.read_text(encoding="utf-8"))
+        if data.get("url"):
+            _do_login(config, session, data)
+        elif data.get("cookies"):
+            for k, v in data["cookies"].items():
+                session.cookies.set(k, v)
+            config.auth_mode = "json-cookies"
+        elif data.get("headers"):
+            session.headers.update(data["headers"])
+            config.auth_mode = "json-headers"
+    except Exception as e:
+        if config.verbosity >= 1:
+            sys.stderr.write(f"[session] Error parsing auth JSON: {e}\n")
+
+
+def session_health(config, session) -> bool:
+    """Verify session still valid (e.g., auth probe URL returns 200, not redirect)."""
+    if not getattr(config, "auth_mode", None):
+        return True  # nothing to validate
+
+    probe = getattr(config, "auth_probe_url", "/api/me")
+    if not probe:
+        return True
+
+    target = config.target.rstrip("/")
+    probe_url = f"{target}{probe if probe.startswith('/') else '/' + probe}"
+
+    try:
+        r = session.get(probe_url, timeout=10, allow_redirects=False)
+        if r.status_code in (301, 302, 401, 403):
+            if config.verbosity >= 1:
+                sys.stderr.write(f"[session] Auth probe ({probe_url}) returned {r.status_code} — session may be expired\n")
+            return False
+        return True
+    except Exception:
+        return False
+

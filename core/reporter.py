@@ -191,6 +191,8 @@ class ScanReport:
             self._save_html(filepath)
         elif ext == ".txt":
             self._save_txt(filepath)
+        elif ext in (".sarif", ".sarif.json"):
+            self._save_sarif(filepath)
         else:
             # Default to JSON
             filepath = filepath + ".json"
@@ -198,6 +200,10 @@ class ScanReport:
 
         abs_path = os.path.abspath(filepath)
         log_success(f"Report saved to [bold]{abs_path}[/bold]")
+
+    def _save_sarif(self, filepath: str):
+        export_sarif(self.to_dict(), filepath)
+
 
     def _save_json(self, filepath: str):
         with open(filepath, "w", encoding="utf-8") as f:
@@ -455,3 +461,65 @@ class ScanReport:
 
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(html)
+
+
+def export_sarif(report_data: dict, filepath: str):
+    """
+    Minimal SARIF 2.1.0 exporter (GitHub Code Scanning / VS Code / DefectDojo).
+    """
+    rules = []
+    results = []
+    seen_rules = set()
+
+    target = report_data.get("target", "https://target")
+    tool_name = report_data.get("tool", "NextSploit")
+    tool_version = report_data.get("version", "3.1.0")
+
+    for mod in report_data.get("module_results", []):
+        cve = mod.get("cve", "UNKNOWN")
+        rule_id = f"nextsploit-{cve.lower()}"
+
+        if rule_id not in seen_rules:
+            seen_rules.add(rule_id)
+            rules.append({
+                "id": rule_id,
+                "name": mod.get("title", rule_id),
+                "shortDescription": {"text": mod.get("title", rule_id)},
+                "defaultConfiguration": {
+                    "level": "error" if mod.get("severity") in ("CRITICAL", "HIGH") else "warning"
+                },
+                "helpUri": f"https://github.com/aarsaputra/NextSploit"
+            })
+
+        if mod.get("status") == "VULNERABLE":
+            for finding in mod.get("findings", []):
+                results.append({
+                    "ruleId": rule_id,
+                    "level": "error" if finding.get("severity") in ("CRITICAL", "HIGH") else "warning",
+                    "message": {"text": finding.get("detail", mod.get("title"))[:500]},
+                    "locations": [{
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": target},
+                            "region": {"startLine": 1}
+                        }
+                    }]
+                })
+
+    sarif = {
+        "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+        "version": "2.1.0",
+        "runs": [{
+            "tool": {
+                "driver": {
+                    "name": tool_name,
+                    "version": tool_version,
+                    "rules": rules
+                }
+            },
+            "results": results
+        }]
+    }
+
+    with open(filepath, "w", encoding="utf-8") as f:
+        json.dump(sarif, f, indent=2, ensure_ascii=False)
+

@@ -181,5 +181,18 @@ MODULE_REGISTRY = {
         "module": "modules.sourcemap_exposure",
         "function": "scan",
     },
+    "middleware": {
+        "name": "MIDDLEWARE-ANALYSIS",
+        "title": "Next.js Middleware Auth & Bypass Analysis",
+        "module": "modules.middleware_analysis",
+        "function": "scan",
+    },
+    "header_fuzzer": {
+        "name": "HEADER-FUZZER",
+        "title": "Next.js Internal Header Differential Fuzzer",
+        "module": "modules.header_fuzzer",
+        "function": "scan",
+    },
 }
+
 
