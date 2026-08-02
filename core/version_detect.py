@@ -174,6 +174,14 @@ class VersionDetector:
             for js in js_paths:
                 self.discovered_chunks.add(js)
                 
+            # Detect Turbopack in page HTML
+            if "turbopack" in body.lower() or "__turbopack__" in body:
+                self.signals.append(Signal(
+                    "turbopack_html_marker", 0.8,
+                    low=(15, 0, 0),
+                    evidence="Turbopack builder references found in page HTML"
+                ))
+
             # Router type detection
             if "/_next/static/chunks/app/" in body or "/_next/static/css/app/" in body:
                 self.router_type = "app"
@@ -187,6 +195,18 @@ class VersionDetector:
                 build_id = bid_match.group(1)
                 log_debug(f"Discovered Build ID: {build_id}")
                 self.config.discovered_build_id = build_id
+
+            # Crawl RSC flight payload to discover dynamic runtime client chunks
+            try:
+                self.config.throttle()
+                r_rsc = self.session.get(url, headers={"RSC": "1"}, timeout=self.config.timeout)
+                if r_rsc.status_code == 200:
+                    rsc_body = r_rsc.text.replace('\\/', '/')
+                    rsc_js = re.findall(r'(/_next/static/[^\s"\'\\{}()<>]+.js)', rsc_body)
+                    for js in rsc_js:
+                        self.discovered_chunks.add(js)
+            except Exception:
+                pass
 
         except Exception as e:
             log_debug(f"Error crawling page {url}: {e}")
@@ -210,11 +230,72 @@ class VersionDetector:
                 pass
         return links
 
+    def _probe_sourcemap(self, chunk_path: str) -> None:
+        """Probe for exposed sourcemap (.js.map) and parse it for exact version tags."""
+        map_url = urllib.parse.urljoin(self.target, chunk_path + ".map")
+        try:
+            self.config.throttle()
+            r = self.session.get(map_url, timeout=self.config.timeout)
+            self.config.record_request(r.status_code, response=r)
+            if r.status_code == 200:
+                text = r.text
+                if text.strip().startswith("{") and '"sources"' in text and '"mappings"' in text:
+                    log_success(f"Discovered exposed sourcemap: {chunk_path}.map")
+                    map_data = json.loads(text[:1000000])  # limit parsing for safety
+                    sources = map_data.get("sources", [])
+                    sources_content = map_data.get("sourcesContent", []) or []
+                    
+                    for idx, src in enumerate(sources):
+                        src_lower = src.lower()
+                        if "next/package.json" in src_lower or "node_modules/next/package.json" in src_lower:
+                            if idx < len(sources_content) and sources_content[idx]:
+                                content = sources_content[idx]
+                                m = re.search(r'"version"\s*:\s*["\']([^"\']+)["\']', content)
+                                if m:
+                                    ver = _parse(m.group(1))
+                                    if ver:
+                                        self.signals.append(Signal(
+                                            "sourcemap_next_version", 1.0, exact=ver,
+                                            evidence=f"{chunk_path}.map -> Next.js version: {m.group(1)}"
+                                        ))
+                                        log_success(f"Extracted exact Next.js version from exposed sourcemap: [bold green]{m.group(1)}[/bold green]")
+                                        return
+                        if "react/package.json" in src_lower or "node_modules/react/package.json" in src_lower:
+                            if idx < len(sources_content) and sources_content[idx]:
+                                content = sources_content[idx]
+                                m = re.search(r'"version"\s*:\s*["\']([^"\']+)["\']', content)
+                                if m:
+                                    react_ver = m.group(1)
+                                    for rv, lo, hi in REACT_RANGES:
+                                        if react_ver.startswith(".".join(rv)):
+                                            self.signals.append(Signal(
+                                                "sourcemap_react_correlation", 0.9,
+                                                low=lo, high=hi,
+                                                evidence=f"{chunk_path}.map -> react@{react_ver} correlates to Next.js ranges"
+                                            ))
+                                            log_success(f"Correlated React version {react_ver} from sourcemap to Next.js range")
+                                            break
+        except Exception as e:
+            log_trace(f"Error probing sourcemap {chunk_path}.map: {e}")
+
     def _mine_bundles(self) -> None:
         """Download and mine prioritized JavaScript chunks for version strings."""
         if not self.discovered_chunks:
             log_debug("No JS chunks harvested to mine.")
             return
+
+        # Count chunks that follow Turbopack short-hash naming conventions
+        turbopack_names = 0
+        for chunk in self.discovered_chunks:
+            fn = chunk.split("/")[-1]
+            if "turbopack" in fn.lower() or "_" in fn:
+                turbopack_names += 1
+        if turbopack_names >= 3:
+            self.signals.append(Signal(
+                "turbopack_naming", 0.85,
+                low=(15, 0, 0),
+                evidence=f"Turbopack short-hash naming format matched in {turbopack_names} chunks"
+            ))
 
         # Prioritize chunks that typically contain react-dom / next internals
         def chunk_priority(path: str) -> int:
@@ -235,6 +316,10 @@ class VersionDetector:
 
         sorted_chunks = sorted(self.discovered_chunks, key=chunk_priority)
         
+        # Probe sourcemaps for the top 3 chunks
+        for chunk_path in sorted_chunks[:3]:
+            self._probe_sourcemap(chunk_path)
+
         # Scan up to 15 chunks (enough to find framework / webpack chunks)
         scanned_count = 0
         for chunk_path in sorted_chunks[:15]:
@@ -250,6 +335,22 @@ class VersionDetector:
                 scanned_count += 1
                 body = r.text
                 self.mined_js_texts.append(body)
+
+                # Heuristic: Check for Turbopack runtime signature
+                if "__turbopack_" in body or "TURBOPACK" in body:
+                    self.signals.append(Signal(
+                        "turbopack_marker", 0.9,
+                        low=(15, 0, 0),
+                        evidence=f"Turbopack runtime signatures detected in chunk {chunk_path}"
+                    ))
+
+                # Heuristic: Check for React 19 runtime feature warning signatures
+                if "React.use()" in body or "unwrapped with `await` or `React.use()`" in body or "unwrapped with \\`await\\` or \\`React.use()\\`" in body:
+                    self.signals.append(Signal(
+                        "react19_marker", 0.85,
+                        low=(15, 0, 0),
+                        evidence=f"React 19 runtime feature pattern detected in chunk {chunk_path}"
+                    ))
 
                 # 1. Look for window.next version assignment (Next.js entrypoint)
                 wm = self.WINDOW_NEXT_VAL_RE.search(body)

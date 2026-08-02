@@ -342,6 +342,10 @@ def fingerprint(config: ScanConfig) -> dict:
     if detect_res.get("router"):
         config.detected_router_type = detect_res["router"]
 
+    # Pass discovered JS chunks to config for other modules (like sourcemap_exposure) to use
+    if hasattr(detector, "discovered_chunks") and detector.discovered_chunks:
+        config.discovered_js_chunks = list(detector.discovered_chunks)
+
     # ─── Step 7: Server Action ID Discovery ──────────────────────────────
     log_info("Scanning JS bundles for Server Action IDs...")
     found_action_ids = set()
