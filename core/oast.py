@@ -149,7 +149,7 @@ class InteractshClient:
         self.token_file = token_file
         self.client = None
 
-    def start() -> bool:
+    def start(self) -> bool:
         if not HAS_INTERACTSH:
             return False
         try:
