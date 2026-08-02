@@ -316,103 +316,38 @@ def fingerprint(config: ScanConfig) -> dict:
     else:
         log_debug("No __NEXT_DATA__ script found")
 
-    # ─── Step 5: Probe known Next.js indicator paths ─────────────────────
-    log_info("Probing Next.js indicator paths...")
-    indicator_paths = [
-        ("/_next/static/chunks/webpack.js", "Webpack chunks (Next.js)"),
-        ("/_next/static/chunks/main.js", "Main bundle"),
-        ("/_next/static/chunks/pages/_app.js", "Pages router (_app.js)"),
-        ("/_next/static/chunks/app/layout.js", "App router (layout.js)"),
-        ("/_next/image?url=/&w=1&q=1", "Next.js Image Optimization API"),
-    ]
+    # ─── Step 5 & 6: Multi-Signal Version Detection ──────────────────────
+    from core.version_detect import VersionDetector
+    detector = VersionDetector(session, target, config)
+    detect_res = detector.detect()
 
-    js_chunks_to_scan = []
-    for path, desc in indicator_paths:
-        try:
-            config.throttle()
-            r2 = session.get(f"{target}{path}", timeout=config.timeout)
-            config.record_request(r2.status_code)
-            if r2.status_code == 200:
-                log_success(f"Found: {desc} [dim]({path})[/dim]")
-                result["technologies"].append(desc)
+    if detect_res.get("version"):
+        result["version"] = detect_res["version"]
+        raw_source = detect_res.get("source", "none")
+        source_mapping = {
+            "window_next_version": "chunk_js",
+            "bundle_package_json": "chunk_js",
+            "react_version_correlation": "chunk_js",
+            "error_leak_header": "header",
+            "error_leak_payload": "error_leak",
+            "header_powered_by": "header",
+            "header_cache": "header",
+            "rsc_header_probe": "header",
+            "middleware_bundle_probe": "chunk_js",
+            "range_intersection": "module_infer",
+        }
+        mapped_source = source_mapping.get(raw_source, "module_infer")
+        config.report_version(detect_res["version"], detect_res["confidence"], mapped_source)
 
-                if path == "/_next/static/chunks/pages/_app.js":
-                    config.detected_router_type = "pages"
-                elif path == "/_next/static/chunks/app/layout.js":
-                    config.detected_router_type = "app"
-
-                if path.endswith(".js"):
-                    js_chunks_to_scan.append((path, r2.text))
-                    ver_match = re.search(r'Next\.js\s*v?(\d+\.\d+\.\d+)', r2.text)
-                    if ver_match:
-                        ver = ver_match.group(1)
-                        config.report_version(ver, 0.9, "chunk_js")
-                        if not result["version"]:
-                            result["version"] = ver
-                            log_success(
-                                f"Version from JS: [bold green]{result['version']}[/bold green]"
-                            )
-            else:
-                log_debug(f"[{r2.status_code}] {path}")
-        except requests.RequestException as e:
-            log_trace(f"Network error probing indicator path {path}: {e}")
-
-    # ─── Step 6: Version detection from JS chunks ────────────────────────
-    if not result["version"]:
-        log_info("Attempting version detection from JS chunks...")
-
-        # Prioritize chunks that likely contain framework/version information
-        def chunk_priority(path: str) -> int:
-            path_lower = path.lower()
-            if "framework" in path_lower:
-                return 0
-            if "main" in path_lower:
-                return 1
-            if "webpack" in path_lower:
-                return 2
-            if "core" in path_lower:
-                return 3
-            if "layout" in path_lower:
-                return 4
-            if "_app" in path_lower:
-                return 5
-            return 10
-
-        sorted_js_chunks = sorted(js_chunk_paths, key=chunk_priority)
-
-        for chunk_path in sorted_js_chunks[:15]:
-            try:
-                config.throttle()
-                r3 = session.get(f"{target}{chunk_path}", timeout=config.timeout)
-                config.record_request(r3.status_code)
-                if r3.status_code == 200:
-                    js_chunks_to_scan.append((chunk_path, r3.text))
-                    patterns = [
-                        r'(?:"version"|\'version\'|version)\s*[:=]\s*["\'](\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?)["\']',
-                        r'Next\.js\s*v?(\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?\b)',
-                        r'nextjs/(\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?\b)',
-                        r'window\.next\s*=\s*\{\s*version\s*:\s*["\'](\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?)["\']',
-                    ]
-                    for pat in patterns:
-                        m = re.search(pat, r3.text)
-                        if m:
-                            ver = m.group(1)
-                            config.report_version(ver, 0.9, "chunk_js")
-                            result["version"] = ver
-                            log_success(
-                                f"Version from chunk: [bold green]{result['version']}[/bold green]"
-                            )
-                            break
-                if result["version"]:
-                    break
-            except requests.RequestException as e:
-                log_trace(f"Network error fetching chunk {chunk_path}: {e}")
+    if detect_res.get("router"):
+        config.detected_router_type = detect_res["router"]
 
     # ─── Step 7: Server Action ID Discovery ──────────────────────────────
     log_info("Scanning JS bundles for Server Action IDs...")
     found_action_ids = set()
 
-    all_js_text = "\n".join(content for _, content in js_chunks_to_scan)
+    mined_texts = getattr(detector, "mined_js_texts", [])
+    all_js_text = "\n".join(mined_texts)
     if not all_js_text:
         all_js_text = page_text  # Fall back to page source
 

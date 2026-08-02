@@ -185,20 +185,22 @@ NextSploit executes a structured, multi-phase pipeline on every scan run. Below 
 - Applies common browser-mimicking headers: `User-Agent` (Chrome/125), `Accept-Language`, `Accept-Encoding`, `Connection: keep-alive`.
 - Loads cookies from the initial handshake response (WAF challenge tokens like Cloudflare `cf_clearance`, Akamai session cookies, etc.) into the session automatically.
 
-### **Phase 2 — Multi-Strategy Fingerprinting** (`modules/fingerprint.py`)
-The fingerprinter uses **5 independent signal sources** and aggregates them in a thread-safe `VersionState`:
+### **Phase 2 — Multi-Strategy Fingerprinting** (`core/version_detect.py` & `modules/fingerprint.py`)
+The fingerprinter delegates version detection to a dedicated multi-signal engine that harvests, correlates, and intersects various telemetry signals:
 
 | Signal Source | Technique | Example |
 |:---|:---|:---|
 | **HTTP Header** | Reads `X-Powered-By: Next.js` | Detects framework presence |
 | **`__NEXT_DATA__`** | Parses inline JSON from HTML `<script>` | Extracts `buildId`, `runtimeConfig` |
 | **Static Chunk URLs** | Scans `/_next/static/<buildId>/` path patterns via regex | Extracts Build ID from CDN/Akamai URLs |
-| **Bundle Leak** | Fetches `/_next/static/chunks/main.js` and scans for version string | `"next":"14.2.10"` |
-| **Error Page Leak** | Triggers `/_next/data/<random>/404.json` — Next.js reveals version in error body | `"nextVersion":"14.2.10"` |
+| **window.next Version** | Mines prioritized JS chunks for `window.next = {version: "X.Y.Z"}` | Detects modern Next.js client-side version |
+| **Bundle Metadata** | Mines bundle package.json details for `"name":"next"` and `"version":"X.Y.Z"` | Pinpoints package/React version correlations |
+| **Error Page Leak** | Triggers `/_next/data/<buildId>/404.json` — Next.js reveals version in error body | `"nextVersion":"14.2.10"` |
+| **Active Probes** | Probes RSC endpoints (`/.rsc` header) and middleware bundles | Identifies layout types and routing features |
 
 Collected signals: **Next.js version**, **Build ID**, **active Server Action IDs** (from `<script>` tags or `Next-Action` header echoes).
 
-**Enhancements**: Uses HTML normalization to resolve escaped slash characters (`\/` to `/`) in inline RSC script streams, prioritizing main script chunks (`framework`, `webpack`, `main`), scanning up to 15 chunks (increased from 5), and applying robust regex mappings to support minified formats and pre-releases.
+**Enhancements**: Uses dynamic sub-page link crawling to discover chunk splitting layouts, HTML normalization to resolve escaped slash characters (`\/` to `/`) in inline RSC payloads, prioritization of framework-specific chunks (`framework`, `webpack`, `main`, `turbopack`), scanning up to 15 chunks, and semantic range intersection with React version mappings.
 
 ### **Phase 3 — Version Vulnerability Matrix**
 - Compares detected version against `CVE_DATABASE` in `core/config.py`.

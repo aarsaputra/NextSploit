@@ -175,20 +175,22 @@ NextSploit menjalankan pipeline multi-fase yang terstruktur pada setiap sesi pem
 - Menerapkan header yang meniru peramban asli: `User-Agent` (Chrome/125), `Accept-Language`, `Accept-Encoding`, `Connection: keep-alive`.
 - Menyimpan cookie dari respons *handshake* awal (token tantangan WAF seperti Cloudflare `cf_clearance`, cookie sesi Akamai, dll.) ke dalam sesi secara otomatis untuk permintaan berikutnya.
 
-### **Fase 2 — Fingerprinting Multi-Strategi** (`modules/fingerprint.py`)
-*Fingerprinter* menggunakan **5 sumber sinyal independen** dan mengagregasinya di `VersionState` yang aman dari *race condition*:
+### **Fase 2 — Sidik Jari Multi-Strategi** (`core/version_detect.py` & `modules/fingerprint.py`)
+Pemindai mendelegasikan deteksi versi ke mesin multi-sinyal khusus yang mengumpulkan, mengkorelasikan, dan mengiris berbagai sinyal telemetri:
 
 | Sumber Sinyal | Teknik | Contoh |
 |:---|:---|:---|
 | **HTTP Header** | Membaca `X-Powered-By: Next.js` | Mendeteksi kehadiran framework |
 | **`__NEXT_DATA__`** | Mengurai JSON inline dari tag `<script>` di HTML | Mengekstrak `buildId`, `runtimeConfig` |
 | **URL Chunk Statis** | Memindai pola path `/_next/static/<buildId>/` via regex | Mengekstrak Build ID dari URL CDN/Akamai |
-| **Bundle Leak** | Mengunduh `/_next/static/chunks/main.js` dan mencari string versi | `"next":"14.2.10"` |
-| **Error Page Leak** | Memicu `/_next/data/<random>/404.json` — Next.js mengungkap versi di body error | `"nextVersion":"14.2.10"` |
+| **window.next Version** | Memindai chunk JS prioritas untuk `window.next = {version: "X.Y.Z"}` | Mendeteksi versi client-side Next.js modern |
+| **Metadata Bundle** | Memindai detail package.json bundle untuk `"name":"next"` dan `"version":"X.Y.Z"` | Menentukan korelasi versi paket/React |
+| **Error Page Leak** | Memicu `/_next/data/<buildId>/404.json` — Next.js mengungkap versi di body error | `"nextVersion":"14.2.10"` |
+| **Active Probes** | Memeriksa endpoint RSC (header `/.rsc`) dan bundle middleware | Mengidentifikasi tipe layout dan fitur routing |
 
 Sinyal yang dikumpulkan: **versi Next.js**, **Build ID**, **Server Action ID aktif** (dari tag `<script>` atau echo header `Next-Action`).
 
-**Peningkatan**: Menggunakan normalisasi HTML untuk menangani escaped slashes (`\/` menjadi `/`) pada RSC payloads, prioritas pemindaian chunk penting (`framework`, `webpack`, `main`), kedalaman pemindaian hingga 15 chunks, dan peningkatan regex versi minified serta pre-release (`canary`, `rc`).
+**Peningkatan**: Menggunakan perayapan tautan sub-halaman dinamis untuk menemukan tata letak pemisahan chunk, normalisasi HTML untuk menangani karakter slash ter-escape (`\/` menjadi `/`) pada RSC payloads, memprioritaskan chunk khusus framework (`framework`, `webpack`, `main`, `turbopack`), memindai hingga 15 chunks, dan persimpangan rentang semantik dengan pemetaan versi React.
 
 ### **Fase 3 — Matriks Kerentanan Versi**
 - Membandingkan versi yang terdeteksi dengan `CVE_DATABASE` di `core/config.py`.
