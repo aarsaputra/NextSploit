@@ -1,0 +1,9 @@
+{
+  "name": "bugbounty",
+  "extends": "safe",
+  "active_testing": true,
+  "rate_limit": 10,
+  "concurrency": 5,
+  "timeout": 15,
+  "allowed_phases": ["Target Validation", "Recon & WAF Detection", "Fingerprinting", "Active Testing"]
+}

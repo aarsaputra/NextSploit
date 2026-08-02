@@ -1,0 +1,3 @@
+"""
+nextsploit package initialization.
+"""

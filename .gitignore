@@ -3,18 +3,35 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# NextSploit specific output & reports
+# NextSploit generated scan reports (runtime output, never committed)
 reports/
 scan*.json
+report.json
+report.html
+report.md
+*.sarif
+
+# Build / update cache
 .update_cache.json
+
+# Dev scratch space
 scratch/
 !requirements.txt
 
-# AI Agent context (local only, not for repo)
+# Runtime state — per-user toggle, generated at runtime
+nextsploit/policies/active_plugins.json
+
+# AI Agent context (local only)
 .agent/
 
-# Raw development / testing scripts (not part of the framework)
+# Raw development notes (not part of the framework)
 research.md
+
+# Legacy v3 entrypoint (kept locally for reference only)
+nextsploit_legacy.py
+
+# Local vulnerable lab environment (Docker Compose, not for repo)
+vuln-lab/
 
 # Virtual Environments
 venv/

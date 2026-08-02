@@ -1,0 +1,15 @@
+{
+  "manifest_version": "1.0",
+  "id": "next.sample.legacy",
+  "name": "Sample Legacy Plugin",
+  "version": "1.0.0",
+  "sdk_version": ">=4.0,<5.0",
+  "author": "NextSploit Team",
+  "description": "Exemplary legacy plugin exposing a scan function.",
+  "license": "MIT",
+  "entry": "plugin.py:scan",
+  "phase": "passive",
+  "severity": "medium",
+  "requires": [],
+  "policies": ["safe", "bugbounty", "pentest", "ci"]
+}

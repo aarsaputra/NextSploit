@@ -1,0 +1,15 @@
+{
+  "manifest_version": "1.0",
+  "id": "next.sample.modern",
+  "name": "Sample Modern Plugin",
+  "version": "1.0.0",
+  "sdk_version": ">=4.0,<5.0",
+  "author": "NextSploit Team",
+  "description": "Exemplary modern plugin demonstrating v4 lifecycle steps.",
+  "license": "MIT",
+  "entry": "plugin.py:SampleModernPlugin",
+  "phase": "passive",
+  "severity": "low",
+  "requires": ["turbopack"],
+  "policies": ["safe", "bugbounty", "pentest", "ci"]
+}

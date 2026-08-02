@@ -1,0 +1,9 @@
+{
+  "id": "nextjs_detect",
+  "name": "Next.js Framework Detection Signature",
+  "category": "fingerprint",
+  "markers": [
+    "window.next",
+    "/_next/static/"
+  ]
+}

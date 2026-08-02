@@ -1,0 +1,6 @@
+{
+  "name": "ci",
+  "extends": "safe",
+  "timeout": 5,
+  "rate_limit": 15
+}

@@ -1,0 +1,6 @@
+{
+  "id": "server_actions_probe",
+  "name": "Server Actions Detection Heuristic",
+  "confidence_weight": 0.9,
+  "probe_path": "/api/actions"
+}

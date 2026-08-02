@@ -1,0 +1,8 @@
+{
+  "id": "CVE-2024-34342",
+  "title": "Next.js Server Side Request Forgery (SSRF)",
+  "severity": "high",
+  "cvss": 7.5,
+  "affected_versions": "<14.2.3",
+  "description": "A Server-Side Request Forgery vulnerability in Next.js Server Actions."
+}
