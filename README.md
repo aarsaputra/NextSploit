@@ -16,6 +16,7 @@ This framework builds upon the original concept of **[AnonKryptiQuz/NextSploit](
 - **🔒 Active / Passive Mode Safety**: Potentially intrusive modules (OOB SSRF, shared cache differential tests) run in **passive mode by default**. Active execution requires explicit `--confirm-active` opt-in.
 - **⚡ Rate Limiting & Delay**: Built-in `--rate-limit` (req/sec) and `--delay` (seconds between requests) to prevent target overloading and evade WAF throttling.
 - **⚖️ FP Reduction & Confidence Scoring**: Precondition helpers (`has_app_router()`, `has_active_server_actions()`) skip non-applicable targets with `NOT_APPLICABLE` or `INCONCLUSIVE` statuses.
+- **📊 JSON Report Schema v2.3**: `REPORT_SCHEMA_VERSION` 2.3 supports 5 status values (`VULNERABLE`, `NOT VULNERABLE`, `NOT_APPLICABLE`, `INCONCLUSIVE`, `ERROR`) for seamless CI/CD integration.
 - **🌐 Automated Chrome Browser Chaining**: Integrates AnonKryptiQuz's Chrome Browser Exploit Engine to launch a Selenium-controlled Chrome window with preconfigured bypass headers.
 
 
@@ -158,7 +159,7 @@ NextSploit/
 | Module CLI Key (`--cve`) | CVE / ID | Vulnerability Type | Severity | Fix Version (15.x / 16.x) | Execution Mode |
 |:---:|:---|:---|:---:|:---:|:---:|
 | `64645` | CVE-2026-64645 | SSRF via rewrites()/redirects() Hostname Injection | HIGH | 15.5.21 / 16.2.11 | ⚡ needs `--confirm-active` |
-| `64642` | CVE-2026-64642 | Middleware Bypass — Turbopack + Single Locale | HIGH | 15.5.21 / 16.2.11 | 🔒 passive default |
+| `64642` | CVE-2026-64642 | Middleware Bypass — Turbopack + Single Locale | HIGH | 16.2.11 (16.x only) | 🔒 passive default |
 | `64641` | CVE-2026-64641 | DoS App Router via Server Actions CPU Exhaustion | HIGH | 15.5.21 / 16.2.11 | 🔒 passive default |
 | `64649` | CVE-2026-64649 | SSRF Server Actions Host Header (Custom Server) | HIGH | 15.5.21 / 16.2.11 | ⚡ needs `--confirm-active` |
 | `44573` | CVE-2026-44573 | Pages Router i18n Data-Route Middleware Bypass | HIGH | 15.5.16 / 16.2.5 | 🔒 passive default |
@@ -189,14 +190,19 @@ NextSploit/
 
 ---
 
-## 🧪 **CVE Coverage Matrix (Latest Next.js Boundaries)**
+## 🧪 **CVE Coverage Matrix (Verified GHSA Boundaries)**
 
 | Release | CVE / ID | Severity | Affected Ranges | Fixed In |
 |:---|:---|:---:|:---|:---:|
 | **July 2026** | CVE-2026-64645 | HIGH | `>= 12.0.0, < 15.5.21` \| `>= 16.0.0, < 16.2.11` | 15.5.21 / 16.2.11 |
-| **July 2026** | CVE-2026-64642 | HIGH | `>= 15.0.0, < 15.5.21` \| `>= 16.0.0, < 16.2.11` | 15.5.21 / 16.2.11 |
-| **July 2026** | CVE-2026-64641 | HIGH | `>= 15.0.0, < 15.5.21` \| `>= 16.0.0, < 16.2.11` | 15.5.21 / 16.2.11 |
-| **July 2026** | CVE-2026-64649 | HIGH | `>= 15.0.0, < 15.5.21` \| `>= 16.0.0, < 16.2.11` | 15.5.21 / 16.2.11 |
+| **July 2026** | CVE-2026-64642 | HIGH | `>= 16.0.0, < 16.2.11` (16.x only) | 16.2.11 |
+| **July 2026** | CVE-2026-64641 | HIGH | `>= 13.0.0, < 15.5.21` \| `>= 16.0.0, < 16.2.11` | 15.5.21 / 16.2.11 |
+| **July 2026** | CVE-2026-64649 | HIGH | `>= 14.1.1, < 15.5.21` \| `>= 16.0.0, < 16.2.11` | 15.5.21 / 16.2.11 |
+| **July 2026** | CVE-2026-64644 | MEDIUM | `>= 15.5.0, < 15.5.21` \| `>= 16.0.0, < 16.2.11` | 15.5.21 / 16.2.11 |
+| **July 2026** | CVE-2026-64646 | MEDIUM | `>= 13.0.0, < 15.5.21` \| `>= 16.0.0, < 16.2.11` | 15.5.21 / 16.2.11 |
+| **July 2026** | CVE-2026-64643 | MEDIUM | `>= 13.0.0, < 15.5.21` \| `>= 16.0.0, < 16.2.11` | 15.5.21 / 16.2.11 |
+| **July 2026** | CVE-2026-64648 | MEDIUM | `>= 13.0.0, < 15.5.21` \| `>= 16.0.0, < 16.2.11` | 15.5.21 / 16.2.11 |
+| **July 2026** | CVE-2026-64647 | MEDIUM | `>= 13.0.0, < 15.5.21` \| `>= 16.0.0, < 16.2.11` (App Router) | 15.5.21 / 16.2.11 |
 | **May 2026** | CVE-2026-44573 | HIGH | `>= 12.2.0, < 15.5.16` \| `>= 16.0.0, < 16.2.5` | 15.5.16 / 16.2.5 |
 | **May 2026** | CVE-2026-44578 | HIGH | `>= 16.0.0, < 16.2.5` (16.x only) | 16.2.5 |
 | **May 2026** | CVE-2026-44579 (mg66) | HIGH | `>= 15.0.0, < 15.5.16` \| `>= 16.0.0, < 16.2.5` | 15.5.16 / 16.2.5 |

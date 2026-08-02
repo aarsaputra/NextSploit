@@ -219,9 +219,11 @@ CVE_DATABASE = {
         "type": "DoS",
         "severity": "MEDIUM",
         "fix_version": "15.5.10",
+        "alias_of": "CVE-2025-59472 (sibling CVE assigned to same Image Optimizer OOM advisory)",
         "description": (
             "Out of Memory (OOM) denial of service vulnerability in Next.js Image Optimization API "
-            "allowing unauthenticated attackers to crash the service via crafted dynamic size parameters."
+            "allowing unauthenticated attackers to crash the service via crafted dynamic size parameters. "
+            "Covers sibling advisory CVE-2025-59472."
         ),
         "references": [
             "https://github.com/vercel/next.js/security/advisories/GHSA-958m-fp9f-f9r5",
@@ -355,6 +357,7 @@ CVE_DATABASE = {
         "title": "WebSocket Upgrade SSRF (Self-Hosted)",
         "type": "SSRF",
         "severity": "HIGH",
+        "single_branch_reason": "WebSocket upgrade routes introduced in 16.x stable, not present in 15.x",
         "ranges": [
             # 16.x ONLY — WebSocket upgrade routes not in 15.x stable
             {"min_version": "16.0.0", "fix_version": "16.2.5", "branch": "16.x"},
@@ -472,15 +475,15 @@ CVE_DATABASE = {
         "type": "DoS",
         "severity": "HIGH",
         "ranges": [
-            {"min_version": "15.0.0", "fix_version": "15.5.21", "branch": "15.x"},
+            {"min_version": "13.0.0", "fix_version": "15.5.21", "branch": "15.x"},
             {"min_version": "16.0.0", "fix_version": "16.2.11", "branch": "16.x"},
         ],
         "description": (
             "Crafted requests targeting App Router applications with at least one "
             "Server Action cause excessive CPU usage, blocking processing of further "
-            "requests (Denial of Service)."
+            "requests (Denial of Service). GHSA-m99w-x7hq-7vfj."
         ),
-        "references": ["https://nextjs.org/blog/july-2026-security-release"],
+        "references": ["https://github.com/advisories/GHSA-m99w-x7hq-7vfj"],
     },
     "CVE-2026-64642": {
         "id": "CVE-2026-64642",
@@ -488,16 +491,16 @@ CVE_DATABASE = {
         "title": "Middleware Bypass — App Router + Turbopack + Single-Locale i18n",
         "type": "Auth Bypass",
         "severity": "HIGH",
+        "single_branch_reason": "App Router + Turbopack single-locale i18n routing table issue associated with 16.x builds",
         "ranges": [
-            {"min_version": "15.0.0", "fix_version": "15.5.21", "branch": "15.x"},
             {"min_version": "16.0.0", "fix_version": "16.2.11", "branch": "16.x"},
         ],
         "description": (
             "App Router applications built with Turbopack and a single entry in "
             "config.i18n.locales are vulnerable to middleware/proxy bypass, granting "
-            "unauthenticated access to protected routes."
+            "unauthenticated access to protected routes. GHSA-6gpp-xcg3-4w24."
         ),
-        "references": ["https://nextjs.org/blog/july-2026-security-release"],
+        "references": ["https://github.com/advisories/GHSA-6gpp-xcg3-4w24"],
     },
     "CVE-2026-64645": {
         "id": "CVE-2026-64645",
@@ -523,15 +526,15 @@ CVE_DATABASE = {
         "type": "SSRF",
         "severity": "HIGH",
         "ranges": [
-            {"min_version": "15.0.0", "fix_version": "15.5.21", "branch": "15.x"},
+            {"min_version": "14.1.1", "fix_version": "15.5.21", "branch": "15.x"},
             {"min_version": "16.0.0", "fix_version": "16.2.11", "branch": "16.x"},
         ],
         "description": (
             "When a Server Action forwards or redirects a request on a custom Node.js "
             "server, an attacker can manipulate the Host header to cause the server to "
-            "send that outbound request to a malicious host (SSRF)."
+            "send that outbound request to a malicious host (SSRF). GHSA-89xv-2m56-2m9x."
         ),
-        "references": ["https://nextjs.org/blog/july-2026-security-release"],
+        "references": ["https://github.com/advisories/GHSA-89xv-2m56-2m9x"],
     },
     "CVE-2026-64644": {
         "id": "CVE-2026-64644",
@@ -540,14 +543,14 @@ CVE_DATABASE = {
         "type": "DoS",
         "severity": "MEDIUM",
         "ranges": [
-            {"min_version": "13.0.0", "fix_version": "15.5.21", "branch": "15.x"},
+            {"min_version": "15.5.0", "fix_version": "15.5.21", "branch": "15.x"},
             {"min_version": "16.0.0", "fix_version": "16.2.11", "branch": "16.x"},
         ],
         "description": (
             "Crafted SVG payloads sent to the /_next/image endpoint cause CPU "
-            "exhaustion, blocking image optimization requests (Denial of Service)."
+            "exhaustion, blocking image optimization requests (Denial of Service). GHSA-q8wf-6r8g-63ch."
         ),
-        "references": ["https://nextjs.org/blog/july-2026-security-release"],
+        "references": ["https://github.com/advisories/GHSA-q8wf-6r8g-63ch"],
     },
     "CVE-2026-64646": {
         "id": "CVE-2026-64646",
@@ -556,14 +559,14 @@ CVE_DATABASE = {
         "type": "DoS",
         "severity": "MEDIUM",
         "ranges": [
-            {"min_version": "15.0.0", "fix_version": "15.5.21", "branch": "15.x"},
+            {"min_version": "13.0.0", "fix_version": "15.5.21", "branch": "15.x"},
             {"min_version": "16.0.0", "fix_version": "16.2.11", "branch": "16.x"},
         ],
         "description": (
             "Server Action endpoints running in the Edge runtime do not enforce "
-            "payload size limits, allowing memory exhaustion via large request bodies."
+            "payload size limits, allowing memory exhaustion via large request bodies. GHSA-4c39-4ccg-62r3."
         ),
-        "references": ["https://nextjs.org/blog/july-2026-security-release"],
+        "references": ["https://github.com/advisories/GHSA-4c39-4ccg-62r3"],
     },
     "CVE-2026-64643": {
         "id": "CVE-2026-64643",
@@ -572,15 +575,15 @@ CVE_DATABASE = {
         "type": "Info Disclosure",
         "severity": "MEDIUM",
         "ranges": [
-            {"min_version": "15.0.0", "fix_version": "15.5.21", "branch": "15.x"},
+            {"min_version": "13.0.0", "fix_version": "15.5.21", "branch": "15.x"},
             {"min_version": "16.0.0", "fix_version": "16.2.11", "branch": "16.x"},
         ],
         "description": (
             "Server Action and 'use cache' endpoint IDs are exposed in error "
             "responses and can be enumerated without authentication, providing "
-            "a significant reconnaissance vector."
+            "a significant reconnaissance vector. GHSA-955p-x3mx-jcvp."
         ),
-        "references": ["https://nextjs.org/blog/july-2026-security-release"],
+        "references": ["https://github.com/advisories/GHSA-955p-x3mx-jcvp"],
     },
     "CVE-2026-64648": {
         "id": "CVE-2026-64648",
@@ -595,9 +598,9 @@ CVE_DATABASE = {
         "description": (
             "The fetch() cache in Next.js can serve a response body intended for "
             "one request to a different request under certain conditions, causing "
-            "cache confusion and potential data leakage between users."
+            "cache confusion and potential data leakage between users. GHSA-68g3-v927-f742."
         ),
-        "references": ["https://nextjs.org/blog/july-2026-security-release"],
+        "references": ["https://github.com/advisories/GHSA-68g3-v927-f742"],
     },
     "CVE-2026-64647": {
         "id": "CVE-2026-64647",
@@ -612,9 +615,9 @@ CVE_DATABASE = {
         "description": (
             "Variant of CVE-2026-64648 triggered specifically by request bodies "
             "containing invalid UTF-8 byte sequences, causing cache confusion "
-            "and potential response body leakage."
+            "and potential response body leakage. GHSA-4633-3j49-mh5q."
         ),
-        "references": ["https://nextjs.org/blog/july-2026-security-release"],
+        "references": ["https://github.com/advisories/GHSA-4633-3j49-mh5q"],
     },
 }
 

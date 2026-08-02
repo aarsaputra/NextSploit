@@ -16,9 +16,8 @@ Detection Strategy:
   5. Probe bypass paths — if preconditions cannot be confirmed, result is INCONCLUSIVE.
 
 Affected Versions:
-  >= 15.0.0, < 15.5.21  (branch 15.x)
-  >= 16.0.0, < 16.2.11  (branch 16.x)
-Fixed In       : 15.5.21 / 16.2.11
+  >= 16.0.0, < 16.2.11  (16.x branch ONLY — confirmed via GHSA-6gpp-xcg3-4w24)
+Fixed In       : 16.2.11
 Severity       : High
 """
 

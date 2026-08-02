@@ -29,6 +29,18 @@ def scan(config: ScanConfig) -> ModuleResult:
     target  = config.target.rstrip("/")
     log_info(f"Starting {CVE_ID} — cache confusion invalid UTF-8 variant...")
 
+    if not config.version_state.has_app_router:
+        detail = f"Target does not use App Router — {CVE_ID} applies ONLY to App Router applications (GHSA-4633-3j49-mh5q)."
+        result.status = "NOT_APPLICABLE"
+        result.add_finding(Finding(
+            cve=CVE_ID, severity=CVE_INFO["severity"],
+            title="App Router Precondition Not Met",
+            status="NOT_APPLICABLE", detail=detail,
+            evidence={"has_app_router": False}, confidence=1.0
+        ))
+        log_info(detail)
+        return result
+
     best_ver = config.version_state.best()
     version_detected = best_ver.value if best_ver else None
     version_vulnerable = False
