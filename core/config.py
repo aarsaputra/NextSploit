@@ -5,9 +5,11 @@ NextSploit — Core Configuration & Shared Resources
 
 from dataclasses import dataclass, field
 from typing import Optional
+import hashlib
 import threading
 import time
 import requests
+from pathlib import Path
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 import urllib3
@@ -542,6 +544,7 @@ CVE_DATABASE = {
         "title": "DoS Image Optimization API via SVG",
         "type": "DoS",
         "severity": "MEDIUM",
+        "vercel_exempt": True,  # Confirmed via GHSA-q8wf-6r8g-63ch: "If you are using Vercel, you are NOT impacted"
         "ranges": [
             {"min_version": "15.5.0", "fix_version": "15.5.21", "branch": "15.x"},
             {"min_version": "16.0.0", "fix_version": "16.2.11", "branch": "16.x"},
@@ -745,6 +748,7 @@ class ScanConfig:
     discovered_js_chunks: list = field(default_factory=list)
     discovered_css_chunks: list = field(default_factory=list)
     detected_router_type: Optional[str] = None  # "app" | "pages" | None
+    last_response_headers: dict = field(default_factory=dict)  # Main page headers captured during fingerprinting
 
     # — Browser exploit integration (AnonKryptiQuz chaining) —
     browser_exploit: bool = False
@@ -757,10 +761,17 @@ class ScanConfig:
     delay: float = 0.0          # seconds between requests (--delay)
     rate_limit: int = 0         # max requests/second (--rate-limit); 0 = no limit
 
+    # — Raw evidence logging (--save-responses) —
+    save_raw_responses: Optional[str] = None   # None | "all" | "blocked-only" | "findings-only"
+    raw_dir: Optional[Path] = field(default=None, init=False, repr=False, compare=False)
+    current_module_id: Optional[str] = None    # Active module ID set during execution
+
     # — Private: initialized in __post_init__ —
     _counter_lock: object = field(default=None, init=False, repr=False, compare=False)
     _blocked_requests: int = field(default=0, init=False, repr=False, compare=False)
     _total_requests: int = field(default=0, init=False, repr=False, compare=False)
+    _raw_evidence_count: int = field(default=0, init=False, repr=False, compare=False)
+    _block_categories: dict = field(default_factory=dict, init=False, repr=False, compare=False)
     _rate_limiter: object = field(default=None, init=False, repr=False, compare=False)
     _version_state: object = field(default=None, init=False, repr=False, compare=False)
 
@@ -768,6 +779,8 @@ class ScanConfig:
         self._counter_lock = threading.Lock()
         self._blocked_requests = 0
         self._total_requests = 0
+        self._raw_evidence_count = 0
+        self._block_categories = {}
         self._rate_limiter = RateLimiter(self.rate_limit)
         from core.version_state import VersionState
         self._version_state = VersionState()
@@ -793,17 +806,24 @@ class ScanConfig:
 
     # ─── Request Counters (thread-safe) ────────────────────────────────────────────────
 
-    def record_request(self, status_code: int) -> None:
+    def record_request(self, status_code: int, response=None) -> None:
         """
         Record the outcome of one HTTP request.  Call this after every
         requests.get/post inside a module so the orchestrator can compute
         noise_ratio and determine if the result is INCONCLUSIVE.
-        Thread-safe.
+        Thread-safe. Optionally pass the response object for WAF classification.
         """
         with self._counter_lock:
             self._total_requests += 1
             if status_code in (403, 429, 503):
                 self._blocked_requests += 1
+                if response is not None:
+                    try:
+                        from core.waf_detect import classify_blocked_response
+                        category = classify_blocked_response(response)
+                        self._block_categories[category] = self._block_categories.get(category, 0) + 1
+                    except Exception:
+                        pass
 
     def noise_ratio(self) -> float:
         """Fraction of blocked responses (0.0 – 1.0). Thread-safe."""
@@ -812,16 +832,38 @@ class ScanConfig:
                 return 0.0
             return self._blocked_requests / self._total_requests
 
+    def block_category_summary(self) -> str:
+        """
+        Human-readable breakdown of blocked response categories.
+        Returns empty string if no blocks recorded.
+        Example: '80% challenge, 20% rate_limit'
+        """
+        with self._counter_lock:
+            if not self._block_categories or self._blocked_requests == 0:
+                return ""
+            parts = [
+                f"{round(count / self._blocked_requests * 100)}% {cat}"
+                for cat, count in sorted(self._block_categories.items(), key=lambda x: -x[1])
+            ]
+            return ", ".join(parts)
+
     def total_request_count(self) -> int:
         """Total requests made in the current module window. Thread-safe."""
         with self._counter_lock:
             return self._total_requests
+
+    def raw_evidence_count(self) -> int:
+        """Count of raw evidence files saved for the current module. Thread-safe."""
+        with self._counter_lock:
+            return self._raw_evidence_count
 
     def reset_request_counters(self) -> None:
         """Reset per-module counters.  Called by the orchestrator between modules."""
         with self._counter_lock:
             self._blocked_requests = 0
             self._total_requests = 0
+            self._raw_evidence_count = 0
+            self._block_categories = {}
 
     # ─── Precondition Helpers ──────────────────────────────────────────────────────────
 
@@ -852,6 +894,22 @@ class ScanConfig:
             return True   # uncertain — do not skip the module
         return self.detected_router_type == "app"
 
+    def has_managed_hosting(self) -> bool:
+        """
+        True if response headers indicate managed Vercel hosting.
+        Vercel managed hosting includes platform-level mitigations for specific
+        Node.js runtime CVEs (e.g. CVE-2026-64644 per GHSA-q8wf-6r8g-63ch).
+        """
+        headers = self.last_response_headers or {}
+        header_keys_lower = {str(k).lower() for k in headers.keys()}
+        vercel_markers = {"x-vercel-cache", "x-vercel-id", "x-vercel-signature"}
+        if any(marker in header_keys_lower for marker in vercel_markers):
+            return True
+        server_header = str(headers.get("server", "")).lower()
+        if "vercel" in server_header:
+            return True
+        return False
+
     # ─── Rate-Limiting Helper ───────────────────────────────────────────────────────────
 
     def throttle(self) -> None:
@@ -871,7 +929,103 @@ class ScanConfig:
             return {"http": self.proxy, "https": self.proxy}
         return None
 
-    # ─── Evidence Saving ────────────────────────────────────────────────────────────────────
+    # ─── Raw Transaction Logging (--save-responses) ──────────────────────────────────────────
+
+    def init_raw_dir(self, domain: str) -> None:
+        """Create the per-domain raw evidence directory.  Call after domain is known."""
+        self.raw_dir = Path(f"reports/{domain}/raw")
+        self.raw_dir.mkdir(parents=True, exist_ok=True)
+
+    def log_transaction(
+        self,
+        module_id: str,
+        request_obj,
+        response_obj,
+        label: str = "",
+        is_finding: bool = False,
+    ) -> Optional[str]:
+        """
+        Save raw HTTP request + response to disk when --save-responses is active.
+
+        Args:
+            module_id:    CVE ID or module key (used in filename).
+            request_obj:  PreparedRequest (response.request).
+            response_obj: requests.Response.
+            label:        'baseline', 'payload', etc.
+            is_finding:   True if this transaction contributed to a Finding.
+
+        Returns path string if written, else None.
+        """
+        if not self.save_raw_responses or self.raw_dir is None:
+            return None
+
+        status = getattr(response_obj, "status_code", 0)
+        is_blocked = status in (403, 429, 503)
+
+        if self.save_raw_responses == "blocked-only" and not is_blocked:
+            return None
+        if self.save_raw_responses == "findings-only" and not is_finding:
+            return None
+        # "all" mode always writes
+
+        try:
+            req = request_obj
+            req_line = f"{req.method} {req.url}\n"
+            req_headers = "\n".join(f"{k}: {v}" for k, v in req.headers.items())
+            req_body = (req.body or b"") if isinstance(req.body, bytes) else (req.body or "")
+            if isinstance(req_body, bytes):
+                req_body = req_body.decode("utf-8", errors="replace")
+
+            resp_line = f"HTTP {status} {getattr(response_obj, 'reason', '')}\n"
+            resp_headers = "\n".join(f"{k}: {v}" for k, v in response_obj.headers.items())
+            
+            import re
+            # Redact request body if sensitive tokens present
+            req_body = re.sub(
+                r'(Authorization|Cookie|Set-Cookie|X-Auth-Token|api_key|token|password)[:\s=]+[^\n"&]{5,200}',
+                r'\1: [REDACTED]',
+                req_body, flags=re.IGNORECASE,
+            )
+
+            # Redact response body
+            resp_body = response_obj.text[:50000]
+            body_patterns = [
+                (re.compile(r'(Authorization|Cookie|Set-Cookie|X-Auth-Token)[:\s]+[^\n"]{5,200}', re.I), r'\1: [REDACTED]'),
+                (re.compile(r'"(session|token|access_token|refresh_token|api_key)"\s*:\s*"[^"]*"', re.I), r'"\1": "[REDACTED]"'),
+                (re.compile(r'[\w.+-]+@[\w-]+\.[\w.-]+'), '[REDACTED_EMAIL]'),
+                (re.compile(r'\b(?:eyJ[A-Za-z0-9_-]+\.){2}[A-Za-z0-9_-]+\b'), '[REDACTED_JWT]'),
+            ]
+            for pattern, replacement in body_patterns:
+                resp_body = pattern.sub(replacement, resp_body)
+
+            # Check for Cache Confusion cross-user data leak warning requirement (Addendum #8 #45)
+            active_mod = module_id or self.current_module_id or "unknown"
+            header_prefix = ""
+            if any(cid in str(active_mod) for cid in ("64648", "64647")):
+                header_prefix = (
+                    "[!] WARNING: This CVE class involves cross-user data leakage. Review this\n"
+                    "    file manually before attaching to any bug bounty report — automated\n"
+                    "    redaction may not catch all sensitive data patterns.\n\n"
+                )
+
+            transaction = (
+                f"{header_prefix}=== REQUEST ===\n{req_line}{req_headers}\n\n{req_body}\n\n"
+                f"=== RESPONSE ===\n{resp_line}{resp_headers}\n\n{resp_body}\n"
+            )
+
+            fname_hash = hashlib.sha256(transaction.encode()).hexdigest()[:8]
+            safe_mod = active_mod.replace("CVE-2026-", "").replace("CVE-2025-", "").replace("CVE-", "")
+            safe_label = label or "req"
+            fname = f"{safe_mod}_{safe_label}_{fname_hash}.txt"
+            path = self.raw_dir / fname
+            path.write_text(transaction, encoding="utf-8")
+
+            with self._counter_lock:
+                self._raw_evidence_count += 1
+
+            return str(path)
+        except Exception:
+            return None
 
     def save_response(self, filename: str, response: requests.Response) -> str:
         """Save full HTTP response (status, headers, body) to output_dir."""
@@ -940,7 +1094,12 @@ class NextSploitSession(requests.Session):
         self.config.throttle()
         try:
             resp = super().request(method, url, *args, **kwargs)
-            self.config.record_request(resp.status_code)
+            self.config.record_request(resp.status_code, response=resp)
+            self.config.log_transaction(
+                module_id=self.config.current_module_id or "scan",
+                request_obj=resp.request,
+                response_obj=resp,
+            )
             return resp
         except Exception:
             # Treat network exceptions (timeouts/connection drop) as potential WAF block

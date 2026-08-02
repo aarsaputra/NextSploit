@@ -208,6 +208,22 @@ Examples:
         help="Max requests per second, 0 = unlimited (default: 0)",
     )
 
+    # ─── Evidence Logging ────────────────────────────────────────────────────────
+    evidence_group = parser.add_argument_group("Evidence Logging")
+    evidence_group.add_argument(
+        "--save-responses",
+        dest="save_raw_responses",
+        choices=["all", "blocked-only", "findings-only"],
+        default=None,
+        metavar="MODE",
+        help=(
+            "Save raw HTTP request+response to reports/<domain>/raw/. "
+            "Modes: all (every request), blocked-only (403/429/503 only), "
+            "findings-only (only requests tied to a Finding). "
+            "Useful for manual verification on WAF/Cloudflare targets."
+        ),
+    )
+
     return parser.parse_args()
 
 
@@ -245,6 +261,7 @@ def build_scan_config(target: str, args: argparse.Namespace, file_cfg: Dict[str,
     confirm_active = getattr(args, "confirm_active", False) or file_cfg.get("confirm_active", False)
     delay = getattr(args, "delay", 0.0)
     rate_limit = getattr(args, "rate_limit", 0)
+    save_raw_responses = getattr(args, "save_raw_responses", None) or file_cfg.get("save_raw_responses", None)
 
     config = ScanConfig(
         target=target,
@@ -259,6 +276,7 @@ def build_scan_config(target: str, args: argparse.Namespace, file_cfg: Dict[str,
         confirm_active=confirm_active,
         delay=delay,
         rate_limit=rate_limit,
+        save_raw_responses=save_raw_responses,
     )
     if user_agent:
         config.user_agent = user_agent
@@ -327,6 +345,13 @@ def scan_target(target: str, config: ScanConfig, run_all: bool, cve_args: str, r
     config.target = target
     report = ScanReport(target)
 
+    # Init raw evidence directory if --save-responses is active
+    if config.save_raw_responses:
+        from core.reporter import get_domain
+        domain = get_domain(target)
+        config.init_raw_dir(domain)
+        log_info(f"[Evidence] Saving raw responses ({config.save_raw_responses}) to reports/{domain}/raw/")
+
     # ─── Fingerprint Phase ───────────────────────────────────────────────────
     fp_result = fingerprint(config)
     report.nextjs_version = fp_result["version"]
@@ -373,15 +398,13 @@ def scan_target(target: str, config: ScanConfig, run_all: bool, cve_args: str, r
 
     for mod_id in modules_to_run:
         config.reset_request_counters()
+        config.current_module_id = mod_id
         mod_result = run_module(mod_id, config)
 
         # Retrieve request statistics and calculate WAF noise
         total_reqs = config.total_request_count()
-        blocked_reqs = config.noise_ratio() * total_reqs  # approximate or keep exact
-        # Note: self._blocked_requests is private but we can calculate or expose it.
-        # Let's read it directly if possible, or add a config helper.
-        # Actually, let's expose it in ScanConfig or calculate.
-        # We can just get config.noise_ratio() and total_reqs.
+        raw_evidence_cnt = config.raw_evidence_count()
+        blocked_reqs = config.noise_ratio() * total_reqs
         noise = config.noise_ratio()
         blocked = int(round(noise * total_reqs))
 
@@ -398,7 +421,6 @@ def scan_target(target: str, config: ScanConfig, run_all: bool, cve_args: str, r
 
         # Print standardized module footer
         from core.output import print_module_footer
-        # Estimate endpoints and payloads from module results if not explicitly tracked
         endpoints_tested = len(set(f.evidence.get("path", "/") for f in mod_result.findings)) if mod_result.findings else 1
         payloads_sent = total_reqs
         confidence = max((f.compute_confidence() for f in mod_result.findings), default=0.5)
@@ -410,7 +432,8 @@ def scan_target(target: str, config: ScanConfig, run_all: bool, cve_args: str, r
             blocked=blocked,
             total_requests=total_reqs,
             status=mod_result.status,
-            confidence=confidence
+            confidence=confidence,
+            raw_evidence_count=raw_evidence_cnt,
         )
 
 

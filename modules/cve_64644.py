@@ -28,6 +28,22 @@ def scan(config: ScanConfig) -> ModuleResult:
     target  = config.target.rstrip("/")
     log_info(f"Starting {CVE_ID} — Image API SVG DoS check...")
 
+    if config.has_managed_hosting():
+        detail = (
+            "Target hosted on Vercel (managed) — Image Optimization API SVG DoS is NOT APPLICABLE "
+            "due to platform-level protection (per GHSA-q8wf-6r8g-63ch)."
+        )
+        result.status = "NOT_APPLICABLE"
+        result.add_finding(Finding(
+            cve=CVE_ID, severity=CVE_INFO["severity"],
+            title="Managed Hosting Exemption — CVE-2026-64644 Not Applicable",
+            status="NOT_APPLICABLE", detail=detail,
+            evidence={"hosting": "Vercel (managed)", "exemption": "GHSA-q8wf-6r8g-63ch"},
+            confidence=1.0,
+        ))
+        log_info(detail)
+        return result
+
     best_ver = config.version_state.best()
     version_detected = best_ver.value if best_ver else None
     version_vulnerable = False

@@ -74,6 +74,7 @@ def fingerprint(config: ScanConfig) -> dict:
         r = session.get(target, timeout=config.timeout)
         config.record_request(r.status_code)
         result["headers"] = dict(r.headers)
+        config.last_response_headers = dict(r.headers)
         log_debug(f"Status: {r.status_code} | Size: {len(r.text)} bytes")
     except requests.RequestException as e:
         log_error(f"Cannot reach target: {e}")
@@ -92,6 +93,12 @@ def fingerprint(config: ScanConfig) -> dict:
         config.detected_router_type = "app"
     elif "/_next/static/chunks/pages/" in page_text:
         config.detected_router_type = "pages"
+
+    # Log hosting infrastructure
+    if config.has_managed_hosting():
+        log_success("[*] Hosting detected: [bold cyan]Vercel (managed)[/bold cyan] — platform-level protections active")
+    else:
+        log_info("[*] Hosting detected: Self-hosted / unknown")
 
     # ─── Step 2: Detect version from headers ─────────────────────────────
     log_info("Checking response headers...")
@@ -298,16 +305,26 @@ def fingerprint(config: ScanConfig) -> dict:
     else:
         log_warning("Version not detected — matrix will show UNKNOWN status")
 
+    def _get_fix_version(cve_info: dict) -> str:
+        """Safely extract a display string for fix version from either schema."""
+        if "fix_version" in cve_info:
+            return cve_info["fix_version"]
+        if "ranges" in cve_info:
+            # Join branch-specific fix versions: e.g. "15.5.21 / 16.2.11"
+            return " / ".join(r["fix_version"] for r in cve_info["ranges"] if "fix_version" in r) or "N/A"
+        return "N/A"
+
     for cve_id, cve_info in CVE_DATABASE.items():
         status = check_vuln_status(result["version"], cve_id) if result["version"] else "UNKNOWN"
         result["vuln_matrix"].append({
             "cve": cve_id,
-            "type": cve_info["type"],
-            "fix_version": cve_info["fix_version"],
+            "type": cve_info.get("type", "N/A"),
+            "fix_version": _get_fix_version(cve_info),
             "status": status,
         })
 
     print_vuln_matrix(result["vuln_matrix"])
+
 
     # Summary
     if result["version"]:

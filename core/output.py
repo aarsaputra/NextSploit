@@ -238,6 +238,7 @@ def print_module_footer(
     total_requests: int,
     status: str,
     confidence: float,
+    raw_evidence_count: int = 0,
 ) -> None:
     """
     Print a standardized one-line summary at the end of every module.
@@ -267,6 +268,12 @@ def print_module_footer(
         f"Status: [{s_color}]{status}[/{s_color}] "
         f"[dim](conf: {confidence:.2f})[/dim]"
     )
+    if raw_evidence_count > 0:
+        safe_mod = cve_id.replace("CVE-2026-", "").replace("CVE-2025-", "").replace("CVE-", "")
+        console.print(
+            f"    [dim]└─ Raw evidence: [cyan]{raw_evidence_count}[/cyan] file(s) saved in "
+            f"reports/<domain>/raw/{safe_mod}_*.txt[/dim]"
+        )
 
 
 def print_vuln_matrix(matrix: list):
