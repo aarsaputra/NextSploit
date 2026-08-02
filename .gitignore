@@ -18,6 +18,9 @@ report.md
 scratch/
 !requirements.txt
 
+# Local rule testing workspace (personal, not for repo)
+knowledge/rules/local/
+
 # Runtime state — per-user toggle, generated at runtime
 nextsploit/policies/active_plugins.json
 

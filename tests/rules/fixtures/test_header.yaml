@@ -1,0 +1,28 @@
+id: TEST-HEADER-001
+name: "Toy Header Matcher Test Rule"
+version: "1.0"
+
+metadata:
+  author: "NextSploit Team"
+  tags: [test, header]
+
+target:
+  technology: [any]
+  version: "*"
+  requires: []
+
+severity: info
+confidence: 0.5
+
+requests:
+  - method: GET
+    path: /
+    headers: {}
+
+match:
+  all:
+    - type: header
+      operator: exists
+      value: "content-type"
+
+remediation: "This is a test rule only."

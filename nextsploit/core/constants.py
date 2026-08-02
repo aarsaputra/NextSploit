@@ -21,6 +21,9 @@ class Events:
     REQUEST_RECEIVED = "request_received"
     REPORT_GENERATED = "report_generated"
     METRIC_UPDATED = "metric_updated"
+    # Rule Engine events (Sprint 6A)
+    RULE_MATCHED = "rule_matched"
+    RULE_SKIPPED = "rule_skipped"
 
 
 # Vulnerability Severities

@@ -19,6 +19,7 @@ from nextsploit.phases.validation import TargetValidationPhase
 from nextsploit.phases.recon import ReconPhase
 from nextsploit.phases.fingerprint import FingerprintPhase
 from nextsploit.phases.active import PluginExecutionPhase
+from nextsploit.phases.rule_execution import RuleExecutionPhase
 
 
 def parse_args() -> argparse.Namespace:
@@ -174,6 +175,7 @@ def handle_scan(args: argparse.Namespace) -> None:
     pipeline.registry.register(ReconPhase())
     pipeline.registry.register(FingerprintPhase())
     pipeline.registry.register(PluginExecutionPhase())
+    pipeline.registry.register(RuleExecutionPhase())
 
     # Execute
     start_time = time.monotonic()

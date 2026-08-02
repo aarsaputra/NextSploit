@@ -24,8 +24,8 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install requests rich pyyaml
+        pip install requests rich pyyaml pydantic
 
     - name: Run Baseline Test Suite
       run: |
-        python tests/baseline_test.py
+        python -m pytest tests/baseline_test.py tests/rules/test_rule_engine.py -v
