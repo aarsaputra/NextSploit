@@ -175,5 +175,11 @@ MODULE_REGISTRY = {
         "module": "modules.cve_64647",
         "function": "scan",
     },
+    "sourcemap": {
+        "name": "SOURCEMAP-EXPOSURE",
+        "title": "JavaScript Sourcemap Public Exposure",
+        "module": "modules.sourcemap_exposure",
+        "function": "scan",
+    },
 }
 

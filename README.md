@@ -2,7 +2,7 @@
 
 **NextSploit** is a modular, high-accuracy command-line penetration testing automation framework specifically designed to scan, detect, and analyze critical vulnerabilities in **Next.js** web applications. 
 
-This framework builds upon the original concept of **[AnonKryptiQuz/NextSploit](https://github.com/AnonKryptiQuz/NextSploit)**. While the original focused specifically on CVE-2025-29927, **NextSploit v2.3.0** by **aarsaputra** (Original Author: **AnonKryptiQuz**) expands into a comprehensive Next.js auditing engine with 29 multi-vulnerability scanner modules (RCE, SSRF, Request Smuggling, DoS, Cache Poisoning, Authorization Bypass, and Source Exposure), thread-safe version signal aggregation, rate limiting, active/passive mode safety flags, and multi-branch version bounds (Next.js 13.x - 16.x).
+This framework builds upon the original concept of **[AnonKryptiQuz/NextSploit](https://github.com/AnonKryptiQuz/NextSploit)**. While the original focused specifically on CVE-2025-29927, **NextSploit v3.0.0** by **aarsaputra** (Original Author: **AnonKryptiQuz**) expands into a comprehensive Next.js auditing engine with 30 multi-vulnerability scanner modules (RCE, SSRF, Request Smuggling, DoS, Cache Poisoning, Authorization Bypass, and Source Exposure), thread-safe version signal aggregation, Phase 0 WAF/CDN detection, authenticated scanning, rate limiting, active/passive mode safety flags, and multi-branch version bounds (Next.js 13.x - 16.x).
 
 
 ---
@@ -289,7 +289,7 @@ FP Engine checks (`core/fp_engine.py`):
 | `46982` | CVE-2024-46982 | Cache Poisoning / Stored XSS | HIGH | 14.2.10 | 🔒 passive default |
 | `56332` | CVE-2024-56332 | Pathname Middleware Bypass | HIGH | 14.2.25 | 🔒 passive default |
 | `48068` | CVE-2025-48068 | Dev Server Source Exposure | MEDIUM | 15.2.2 | 🔒 passive default |
-| `34350` | CVE-2024-34350 | HTTP Request Smuggling | HIGH | 13.5.1 | 🔒 passive default |
+| `34350` | CVE-2024-34350 | HTTP Request Smuggling *(version-based; active needs `httpx[http2]`)* | HIGH | 13.5.1 | 🔒 version-based |
 | `59471` | CVE-2025-59471 | Image Optimizer DoS Check | MEDIUM | 15.5.10 | 🔒 passive default |
 | `23870` | CVE-2026-23870 | DoS via RSC Deserialization | HIGH | 15.5.16 | 🔒 passive default |
 | `67779` | CVE-2025-67779 | DoS via Infinite Promise Loop | HIGH | 15.5.9 | 🔒 passive default |
@@ -297,7 +297,11 @@ FP Engine checks (`core/fp_engine.py`):
 | `23864` | CVE-2026-23864 | DoS RSC Memory Exhaustion ($K) | HIGH | 15.5.10 | 🔒 passive default |
 | `mg66`  | GHSA-mg66-mrh9-m8jx | DoS PPR/Cache Components Deadlock | HIGH | 15.5.16 / 16.2.5 | 🔒 passive default |
 | `45109` | CVE-2026-45109 | Middleware Bypass via Turbopack | HIGH | 15.5.18 | 🔒 passive default |
+| `44578` | CVE-2026-44578 | WebSocket SSRF *(version-based; active needs `websockets`)* | HIGH | 16.2.5 | 🔒 version-based |
 | `rsc`   | RSC-Attack | RSC Protocol & Server Actions Audit | INFO | All App Router versions | 🔒 passive default |
+| `sourcemap` | SOURCEMAP-EXPOSURE | JavaScript Sourcemap Public Exposure | HIGH | All versions | 🔒 passive default |
+
+> **Note on HTTP/2 Modules**: Active probing for CVE-2024-34350 (Request Smuggling) and CVE-2026-44578 (WebSocket SSRF) requires HTTP/2 support not included in the default `requests` stack. Install the optional dependency: `pip install httpx[http2]`. Without it, these modules run in **version-based detection mode only** and will not send active probes.
 
 ---
 

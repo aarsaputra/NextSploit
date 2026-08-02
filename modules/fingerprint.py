@@ -20,6 +20,93 @@ from core.output import (
 )
 
 
+# ─── WAF / CDN Detection Signatures ─────────────────────────────────────────
+
+WAF_CDN_SIGNATURES = {
+    "Cloudflare": {
+        "headers": ["cf-ray", "cf-cache-status", "cf-request-id"],
+        "server": ["cloudflare"],
+        "body": ["cloudflare ray id", "__cf_chl"],
+    },
+    "Akamai": {
+        "headers": ["x-check-cacheable", "x-akamai-transformed", "akamai-origin-hop", "c-via"],
+        "server": ["akamaighost", "akamai"],
+        "body": ["akamai reference"],
+    },
+    "Fastly": {
+        "headers": ["x-fastly-request-id", "fastly-debug-digest", "x-served-by"],
+        "server": ["fastly"],
+        "body": [],
+    },
+    "AWS CloudFront": {
+        "headers": ["x-amz-cf-id", "x-amz-cf-pop"],
+        "server": ["cloudfront"],
+        "body": [],
+    },
+    "Vercel": {
+        "headers": ["x-vercel-id", "x-vercel-cache", "x-vercel-signature"],
+        "server": ["vercel"],
+        "body": [],
+    },
+    "Sucuri": {
+        "headers": ["x-sucuri-id", "x-sucuri-cache"],
+        "server": ["sucuri"],
+        "body": ["sucuri website firewall"],
+    },
+    "Imperva / Incapsula": {
+        "headers": ["x-iinfo", "x-cdn"],
+        "server": ["imperva", "incapsula"],
+        "body": ["incapsula incident"],
+    },
+    "Whaleguard": {
+        "headers": [],
+        "server": [],
+        "body": ["whaleguard block"],
+    },
+}
+
+
+def detect_waf_cdn(response_headers: dict, response_body: str = "") -> list:
+    """
+    Detect WAF/CDN presence from HTTP response headers and body.
+
+    Returns:
+        list of detected WAF/CDN names (may be empty)
+    """
+    detected = []
+    headers_lower = {k.lower(): v.lower() for k, v in response_headers.items()}
+    body_lower = response_body[:2000].lower()
+
+    for name, sigs in WAF_CDN_SIGNATURES.items():
+        matched = False
+
+        # Check headers
+        for h in sigs.get("headers", []):
+            if h.lower() in headers_lower:
+                matched = True
+                break
+
+        # Check Server header
+        if not matched:
+            server_val = headers_lower.get("server", "")
+            for s in sigs.get("server", []):
+                if s.lower() in server_val:
+                    matched = True
+                    break
+
+        # Check body patterns
+        if not matched:
+            for bp in sigs.get("body", []):
+                if bp.lower() in body_lower:
+                    matched = True
+                    break
+
+        if matched:
+            detected.append(name)
+
+    return detected
+
+
 # ─── CDN / Build ID patterns ─────────────────────────────────────────────────
 
 # Matches /_next/static/<build_id>/
@@ -51,7 +138,7 @@ def fingerprint(config: ScanConfig) -> dict:
 
     Returns:
         dict with keys: version, build_id, vuln_matrix, headers,
-                        technologies, action_ids
+                        technologies, action_ids, waf_cdn
     """
     result = {
         "version": None,
@@ -60,6 +147,7 @@ def fingerprint(config: ScanConfig) -> dict:
         "headers": {},
         "technologies": [],
         "action_ids": [],
+        "waf_cdn": [],
     }
 
     session = config.create_session()
@@ -67,8 +155,42 @@ def fingerprint(config: ScanConfig) -> dict:
 
     print_section("Next.js Fingerprinting", f"Target: {target}")
 
-    # ─── Step 1: Fetch main page ─────────────────────────────────────────
-    log_info("Fetching main page...")
+    # ════════════════════════════════════════════════════════════════════
+    # Phase 0: Pre-Scan Triage — WAF/CDN Detection
+    # ════════════════════════════════════════════════════════════════════
+    log_info("[Phase 0] Pre-scan triage: WAF/CDN detection...")
+    try:
+        config.throttle()
+        r_triage = session.get(target, timeout=config.timeout, allow_redirects=True)
+        config.record_request(r_triage.status_code)
+        triage_headers = dict(r_triage.headers)
+        triage_body = r_triage.text
+
+        detected_waf = detect_waf_cdn(triage_headers, triage_body)
+        if detected_waf:
+            result["waf_cdn"] = detected_waf
+            # Store on config for all modules to access
+            config.detected_waf = detected_waf
+            for waf_name in detected_waf:
+                log_warning(
+                    f"[Phase 0] Detected: [bold yellow]{waf_name}[/bold yellow] — "
+                    f"timing/SSRF/cache modules may return INCONCLUSIVE. "
+                    f"Consider scanning the origin IP directly with: "
+                    f"-t http://ORIGIN_IP -H \"Host: {target.split('//')[-1]}\""
+                )
+        else:
+            log_success("[Phase 0] No CDN/WAF detected — direct connection likely")
+            config.detected_waf = []
+
+    except requests.RequestException as e:
+        log_error(f"[Phase 0] Pre-scan triage failed: {e}")
+        config.detected_waf = []
+        triage_headers = {}
+        triage_body = ""
+
+    # ════════════════════════════════════════════════════════════════════
+    # Step 1: Fetch main page
+    # ════════════════════════════════════════════════════════════════════
     try:
         config.throttle()
         r = session.get(target, timeout=config.timeout)

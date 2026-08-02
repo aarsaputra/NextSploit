@@ -187,6 +187,28 @@ Examples:
         ),
     )
 
+    # ─── Authentication ───────────────────────────────────────────────────────
+    auth_group = parser.add_argument_group("Authentication")
+    auth_group.add_argument(
+        "--cookie",
+        dest="auth_cookie",
+        metavar="COOKIE_STRING",
+        help=(
+            "Cookie string injected into all requests (e.g., \"session=abc123; csrf=xyz\"). "
+            "Enables scanning authenticated routes and exposing Server Action IDs "
+            "that only appear after login."
+        ),
+    )
+    auth_group.add_argument(
+        "--auth-token",
+        dest="auth_token",
+        metavar="TOKEN",
+        help=(
+            "Authorization token (e.g., \"Bearer eyJhbGci...\" or a raw JWT). "
+            "Injected as Authorization header in all requests."
+        ),
+    )
+
     # ─── Rate Limiting ────────────────────────────────────────────────────────
     rate_group = parser.add_argument_group("Rate Limiting")
     rate_group.add_argument(
@@ -201,6 +223,37 @@ Examples:
         type=int,
         default=0,
         help="Max requests per second, 0 = unlimited (default: 0)",
+    )
+
+    # ─── Safety ──────────────────────────────────────────────────────────────
+    safety_group = parser.add_argument_group("Safety")
+    safety_group.add_argument(
+        "--skip-dos",
+        dest="skip_dos",
+        action="store_true",
+        help=(
+            "Skip all DoS-class modules (CPU/memory exhaustion, cache flooding). "
+            "Safe for use on production targets."
+        ),
+    )
+    safety_group.add_argument(
+        "--max-requests",
+        dest="max_requests_per_module",
+        type=int,
+        default=0,
+        metavar="N",
+        help="Abort a module after N total HTTP requests (0 = unlimited, default: 0)",
+    )
+    safety_group.add_argument(
+        "--noise-threshold",
+        dest="noise_threshold",
+        type=float,
+        default=0.8,
+        metavar="RATIO",
+        help=(
+            "WAF noise ratio threshold (0.0–1.0, default: 0.8). "
+            "Module is INCONCLUSIVE if > RATIO of probes are blocked."
+        ),
     )
 
     # ─── Evidence Logging ────────────────────────────────────────────────────────
@@ -241,15 +294,12 @@ def load_config_file(filepath: str) -> Dict[str, Any]:
 
 def build_scan_config(target: str, args: argparse.Namespace, file_cfg: Dict[str, Any]) -> ScanConfig:
     """Factory function to build ScanConfig by merging CLI args and JSON file config."""
-    # Priority: CLI arguments (if explicitly set) > File Config > Defaults
-    
     timeout = file_cfg.get("timeout", args.timeout) if args.timeout == 10 else args.timeout
     threads = file_cfg.get("threads", args.threads) if args.threads == 10 else args.threads
     proxy = args.proxy or file_cfg.get("proxy")
     output = args.output or file_cfg.get("output")
     user_agent = args.user_agent or file_cfg.get("user_agent")
-    
-    # Booleans
+
     verify_ssl = file_cfg.get("verify_ssl", not args.no_verify) if not args.no_verify else False
     browser_exploit = getattr(args, "browser", False) or file_cfg.get("browser", False)
     waf_bypass = getattr(args, "waf_bypass", False) or file_cfg.get("waf_bypass", False)
@@ -257,6 +307,17 @@ def build_scan_config(target: str, args: argparse.Namespace, file_cfg: Dict[str,
     delay = getattr(args, "delay", 0.0)
     rate_limit = getattr(args, "rate_limit", 0)
     save_raw_responses = getattr(args, "save_raw_responses", None) or file_cfg.get("save_raw_responses", None)
+
+    # Auth
+    auth_cookie = getattr(args, "auth_cookie", None) or file_cfg.get("auth_cookie", None)
+    auth_token = getattr(args, "auth_token", None) or file_cfg.get("auth_token", None)
+
+    # Safety
+    skip_dos = getattr(args, "skip_dos", False) or file_cfg.get("skip_dos", False)
+    max_requests_per_module = getattr(args, "max_requests_per_module", 0) or file_cfg.get("max_requests_per_module", 0)
+    noise_threshold = getattr(args, "noise_threshold", 0.8)
+    if file_cfg.get("noise_threshold") is not None:
+        noise_threshold = file_cfg["noise_threshold"]
 
     config = ScanConfig(
         target=target,
@@ -272,6 +333,11 @@ def build_scan_config(target: str, args: argparse.Namespace, file_cfg: Dict[str,
         delay=delay,
         rate_limit=rate_limit,
         save_raw_responses=save_raw_responses,
+        auth_cookie=auth_cookie,
+        auth_token=auth_token,
+        skip_dos=skip_dos,
+        max_requests_per_module=max_requests_per_module,
+        noise_threshold=noise_threshold,
     )
     if user_agent:
         config.user_agent = user_agent

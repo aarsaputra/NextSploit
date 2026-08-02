@@ -61,10 +61,27 @@ def create_session(config) -> NextSploitSession:
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.9",
         "Accept-Encoding": "gzip, deflate, br",
+        "Connection": "keep-alive",
     })
     if config.proxies:
         session.proxies.update(config.proxies)
     session.verify = config.verify_ssl
+
+    # ─── Auth injection ───────────────────────────────────────────────────
+    if getattr(config, "auth_cookie", None):
+        # Parse cookie string: "name1=val1; name2=val2"
+        for cookie_pair in config.auth_cookie.split(";"):
+            cookie_pair = cookie_pair.strip()
+            if "=" in cookie_pair:
+                cname, _, cval = cookie_pair.partition("=")
+                session.cookies.set(cname.strip(), cval.strip())
+
+    if getattr(config, "auth_token", None):
+        token = config.auth_token.strip()
+        # Accept both "Bearer xxx" and raw token — add Bearer prefix if missing
+        if not token.lower().startswith(("bearer ", "basic ", "token ")):
+            token = f"Bearer {token}"
+        session.headers["Authorization"] = token
 
     # Retry adapter: back-off on transient errors and rate-limit responses
     retry_strategy = Retry(

@@ -80,6 +80,18 @@ class ScanConfig:
     # — Active-mode opt-in (modules that touch external hosts or shared cache) —
     confirm_active: bool = False  # --confirm-active flag
 
+    # — Authentication (injected into session headers/cookies) —
+    auth_cookie: Optional[str] = None    # --cookie "session=abc; csrf=xyz"
+    auth_token: Optional[str] = None     # --auth-token "Bearer eyJ..."
+
+    # — WAF/CDN detection (populated by Phase 0 fingerprinting) —
+    detected_waf: list = field(default_factory=list)
+
+    # — Safety kill-switch flags —
+    skip_dos: bool = False         # --skip-dos: skip all DoS modules
+    max_requests_per_module: int = 0   # --max-requests N (0 = unlimited)
+    noise_threshold: float = 0.8   # --noise-threshold (default 80%)
+
     # — Rate-limiting —
     delay: float = 0.0          # seconds between requests (--delay)
     rate_limit: int = 0         # max requests/second (--rate-limit); 0 = no limit

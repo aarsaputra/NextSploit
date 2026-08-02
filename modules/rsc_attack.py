@@ -24,7 +24,7 @@ from core.output import (
     log_trace, log_error, log_status, print_module_header, print_finding,
     create_progress,
 )
-from core.fp_engine import validate_prototype_pollution
+from core.fp_engine import validate_prototype_pollution, is_waf_block, get_waf_block_reason
 
 MODULE_NAME = "RSC-Attack"
 MODULE_TITLE = "RSC Protocol & Server Actions"
@@ -177,8 +177,18 @@ def scan(config: ScanConfig) -> ModuleResult:
                     resp_hash = _hash(r.text)
                     size_diff = abs(len(r.text) - base_size)
 
+                    # WAF block check — never flag a WAF block as a finding
+                    if is_waf_block(r):
+                        log_debug(f"WAF block on {ep} ({action_id}): {get_waf_block_reason(r)} — skipped")
+                        continue
+
                     # Only flag if response differs significantly from baseline GET
                     if r.status_code == 200 and resp_hash != base_hash and size_diff > 500:
+                        # Additional soft-404 check: ignore if response is just the homepage HTML
+                        if r.text.strip().lower().startswith("<!doctype html") and size_diff < 5000:
+                            log_debug(f"Soft-404 HTML response on {ep} ({action_id}) — skipped")
+                            continue
+
                         detail = (
                             f"Server Action responds differently on {ep} "
                             f"with action_id={action_id} "
@@ -245,7 +255,17 @@ def scan(config: ScanConfig) -> ModuleResult:
 
                 log_trace(f"[{r.status_code}] POST {ep} (multipart)")
 
+                # WAF block check — skip blocks, don't flag them
+                if is_waf_block(r):
+                    log_debug(f"WAF block on {ep} (multipart): {get_waf_block_reason(r)} — skipped")
+                    continue
+
                 if r.status_code == 200 and r.text:
+                    # Soft-404 check: ignore large HTML responses that are just the homepage
+                    if r.text.strip().lower().startswith("<!doctype html") and len(r.text) > 50000:
+                        log_debug(f"Soft-404 (large HTML homepage) on {ep} multipart — skipped")
+                        continue
+
                     detail = (
                         f"Multipart Server Action responds on {ep} "
                         f"({len(r.text)} bytes)"
