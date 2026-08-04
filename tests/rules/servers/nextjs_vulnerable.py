@@ -53,7 +53,7 @@ class VulnerableNextjsHandler(BaseHTTPRequestHandler):
                 self.send_header("Content-Type", "text/html")
                 self.send_header("x-middleware-next", "1")
                 self.end_headers()
-                self.wfile.write(b"<html><body>Dashboard — welcome, authenticated user!</body></html>")
+                self.wfile.write(b"<html><body>Dashboard - welcome, authenticated user!</body></html>")
             else:
                 # Normal: requires authentication
                 self.send_response(401)

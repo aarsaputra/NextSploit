@@ -87,6 +87,17 @@ def parse_args() -> argparse.Namespace:
     disable_p = plugin_sub.add_parser("disable", help="Disable a plugin")
     disable_p.add_argument("plugin_id", help="Plugin identifier")
 
+    # Command: docs
+    docs_parser = subparsers.add_parser("docs", help="Rule documentation generator and schema validator")
+    docs_sub = docs_parser.add_subparsers(dest="docs_cmd", help="Docs actions")
+
+    gen_p = docs_sub.add_parser("generate", help="Generate Markdown docs from YAML detection rules")
+    gen_p.add_argument("--rules-dir", default="knowledge/rules/core", help="Directory containing YAML rules")
+    gen_p.add_argument("--output-dir", default="docs/detections", help="Base output directory for generated docs")
+
+    val_p = docs_sub.add_parser("validate", help="Validate YAML detection rule schemas and ID uniqueness")
+    val_p.add_argument("--rules-dir", default="knowledge/rules/core", help="Directory containing YAML rules to validate")
+
     return parser.parse_args()
 
 
@@ -370,6 +381,32 @@ def handle_plugin(args: argparse.Namespace) -> None:
             log_error(f"Failed to update plugin toggle state: {e}")
 
 
+def handle_docs(args: argparse.Namespace) -> None:
+    """Processes docs subcommands."""
+    from nextsploit.services.doc_generator import DocGenerator, RuleValidator
+
+    if args.docs_cmd == "generate":
+        log_info(f"Generating rule documentation from '{args.rules_dir}' into '{args.output_dir}'...")
+        generator = DocGenerator(output_base_dir=args.output_dir)
+        files = generator.generate_all(rules_dir=args.rules_dir)
+        for f in files:
+            log_success(f"✓ Document created: {f}")
+        log_success(f"Documentation generation complete ({len(files)} file(s)).")
+
+    elif args.docs_cmd == "validate":
+        log_info(f"Validating YAML rules in '{args.rules_dir}'...")
+        validator = RuleValidator()
+        is_valid, errors = validator.validate_all(rules_dir=args.rules_dir)
+
+        if is_valid:
+            log_success("✓ All YAML rule schemas and ID uniqueness checks passed successfully!")
+        else:
+            log_error(f"✗ Rule validation failed with {len(errors)} error(s):")
+            for err in errors:
+                print(f"  - [red]{err}[/red]")
+            sys.exit(1)
+
+
 def main() -> None:
     """Main CLI handler routing to active command handler."""
     args = parse_args()
@@ -390,6 +427,8 @@ def main() -> None:
         handle_replay(args)
     elif cmd == "plugin":
         handle_plugin(args)
+    elif cmd == "docs":
+        handle_docs(args)
 
 
 if __name__ == "__main__":
