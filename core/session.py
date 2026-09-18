@@ -14,8 +14,7 @@ from typing import Optional
 from urllib3.util import Retry
 from requests.adapters import HTTPAdapter
 
-# Disable urllib3 SSL warnings when verify=False is used
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+# SSL warning suppression is configured conditionally in create_session()
 
 
 class NextSploitSession(requests.Session):
@@ -66,6 +65,8 @@ def create_session(config) -> NextSploitSession:
     if config.proxies:
         session.proxies.update(config.proxies)
     session.verify = config.verify_ssl
+    if not config.verify_ssl:
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
     # ─── Auth injection ───────────────────────────────────────────────────
     if getattr(config, "auth_cookie", None):
